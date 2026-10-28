@@ -1,0 +1,88 @@
+PHASE 11 — MAC MINI DOCKER COMPOSE, DEVELOPMENT, OPERATIONS
+Priority: P0
+
+[1] 요구/의도
+- 운영 호스트: 사용자의 Mac mini, 경로 예시 `/Users/yang/proj/mymcp`.
+- 독립된 Console API가 stdio MCP child를 spawn. Container 안에서 Node와 dist.js가 존재해야 함.
+- Docker container가 Mac host의 stdio Node process를 직접 spawn할 수 있다고 가정하지 말 것.
+- 운영 추천: Vite SPA 정적 파일을 Fastify가 서빙하는 단일 Console container + persistent volume.
+- developer mode만 Vite dev server와 Fastify API server를 분리.
+
+[2] Dockerfile.console (multi-stage)
+Stage deps: Node 22, pnpm 12.9.1 via corepack, pnpm-lock.yaml respected.
+Stage build: packages/console-contracts, packages/mcp-client, apps/console-web,
+             apps/console-server, apps/example, mcps/dcinside build (required server dist inclusion).
+Stage run: minimal Node runtime + installed prod workspace deps + built dist files +
+           config/mcp-registry.json + frontend dist + runtime migrations.
+- image includes only approved supported MCPs by default; unverified have metadata only.
+- `pnpm install --frozen-lockfile` required; if lockfile incompatible, fix in tracked changes.
+- reproducible multi-arch build: Mac mini ARM64(`linux/arm64`) and optional amd64 CI.
+- no source .env, tokens, local db, test fixtures containing user data in image.
+- non-root UID/GID, read-only root fs where feasible, writable data volume.
+- Node PID1 process init/reaping (`init:true` in compose).
+
+[3] docker-compose.console.yml
+- service `mymcp-console`:
+  build: Dockerfile.console
+  ports: `127.0.0.1:PORT:PORT` (host loopback ONLY by default)
+  restart: unless-stopped
+  init: true
+  environment: CONSOLE_PORT, CONSOLE_DATA_DIR, CONSOLE_ADMIN_PASSWORD_HASH,
+               MCP-specific runtime variables (optional runtime secrets)
+  volumes: `console_data:/data` (persistent sqlite + session store)
+  healthcheck: GET localhost `/api/healthz` (minimal public readiness)
+- optional DCInside data store in named volume `dcinside_data:/data/dcinside` if tool imports are used.
+- default `DCINSIDE_DATA_DIR=/data/dcinside`, ensure write permissions.
+- no `/var/run/docker.sock`, no host `/`, no SSH key mount, no public `0.0.0.0` port.
+- use `env_file` only for uncommitted host `.env.console` with file permissions 0600.
+- `CONSOLE_ADMIN_PASSWORD_HASH` generated safely outside Git.
+
+[4] Dev commands (Codex가 실제 package scripts 구현)
+- `corepack enable`
+- `pnpm install --frozen-lockfile`
+- `pnpm --filter @mymcp/example... build`
+- `pnpm --filter @mymcp/dcinside... build`
+- `pnpm --filter @mymcp/console-server... build`
+- `pnpm --filter @mymcp/console-web build`
+- `pnpm console:dev` (Vite + Fastify, no Docker, root helper script)
+- `pnpm console:hash-password` (interactive prompt for initial hash)
+- `docker compose -f docker-compose.console.yml up -d --build`
+- `docker compose -f docker-compose.console.yml logs -f mymcp-console`
+- `docker compose -f docker-compose.console.yml down` (volumes preserved by default)
+- exact scripts/port names documented and tested; 명세의 명령이 구현되지 않은 채 남지 않게.
+
+[5] Access and HTTPS
+- localhost access: `http://127.0.0.1:<configured-port>`.
+- 원격 접근은 원칙적으로 SSH tunnel 또는 Tailscale Serve 등 사용자 통제 TLS 경로로 제공.
+- reverse proxy/Tailscale setup은 별도 운영 문서에 security notes 포함.
+- `0.0.0.0` 공개 Internet 포트 + 평문 HTTP는 금지.
+- 신뢰된 proxy 설정만 사용, 무작위 X-Forwarded-For/Host 신뢰 금지.
+- 쿠키 Secure/Origin policy는 실제 base URL/HTTPS 여부에 맞게 조정.
+
+[6] Env template (values are examples ONLY)
+CONSOLE_PORT=4173
+CONSOLE_HOST=127.0.0.1
+CONSOLE_DATA_DIR=/data
+CONSOLE_ADMIN_PASSWORD_HASH=<ARGON2ID_HASH_GENERATED_BY_CLI>
+# BRAVE_SEARCH_API_KEY=  [optional; do not commit real value]
+DCINSIDE_DATA_DIR=/data/dcinside
+# ... additional safe runtime flags documented here
+- container 내부 host bind는 `0.0.0.0`이 필요할 수 있으므로 compose host port를 127.0.0.1로 묶는 점과 구분.
+- hostname literal IP port configs not confuse host binding vs container binding.
+
+[7] Operations
+- logs/backup/restore/upgrade/rollback procedures `docs/console/operations.md`.
+- health check startup vs not-yet-inspected MCP 구분, readiness는 console service 자체 기준.
+- sqlite backup은 copy of consistent file / sqlite backup API 사용.
+- volume purge는 명시적 별도 명령만, `down -v`를 일반 종료 명령에 포함 금지.
+- graceful SIGTERM child shutdown, restart 후 orphaned process 없음.
+- migration 방식, image update, env validation, DB schema version, no lost data.
+
+[8] Acceptance Tests
+[ ] clean clone + provided secrets -> Compose build and start.
+[ ] host에서 http://127.0.0.1:<port> 접속, 인증 및 tool call 가능.
+[ ] example echo, dc_parse_post_url inside container pass.
+[ ] container restart 이후 events DB 지속.
+[ ] `docker image inspect`/JS bundle에 secret 없음.
+[ ] container process sees Node/dist entrypoints but cannot run arbitrary host shell.
+[ ] local port only; no public exposure by default.

@@ -1,0 +1,91 @@
+08 - CODEX IMPLEMENTATION ORDER, ACCEPTANCE AND HANDOFF
+
+EXECUTE IN PHASES
+
+PHASE A - INSPECT AND BOOTSTRAP
+A1. Inspect repository files/branches and current package setup.
+A2. Respect existing monorepo and package management conventions.
+A3. Create apps/google-maps and minimal root configs only when absent.
+A4. Install compatible official MCP SDK, Zod, Vitest dependencies and lockfile.
+A5. Verify plain stdio server initializes and registers exactly two tool names.
+
+PHASE B - GOOGLE CLIENT + LOCATION
+B1. Centralize config, endpoint allowlist and Google key injection.
+B2. Add retry/timeouts/response validation and stable error mapping.
+B3. Implement Places Text Search New + Geocoding v3 adapters.
+B4. Implement resolve_location with candidate preserving semantics.
+B5. Write tests for ambiguity, partial matches, rate/error handling.
+
+PHASE C - ROUTES
+C1. Implement strict waypoint union and mode/time validation.
+C2. Build minimal field masks and the Compute Routes request mapping.
+C3. Normalize route duration/distance/legs/steps/transit details.
+C4. Add optional alternatives and optional encoded polyline.
+C5. Write mocked route and transit tests, including null fare and no_route.
+
+PHASE D - QUALITY + HANDOFF
+D1. Add .env.example, .gitignore, complete README.
+D2. Add GitHub Actions CI with NO live Google requests.
+D3. Run lint, typecheck, test, build. Fix failures and rerun.
+D4. Exercise actual MCP stdio initialization with a mock dependency.
+D5. Document human-operated live smoke-test instructions.
+D6. Report files changed, tool contracts, commands/results, limitations.
+
+HARD ACCEPTANCE CRITERIA
+- No code writes to GitHub by default; only change working tree until user asks.
+- No route matrix or API unrelated to this specification.
+- No extra MCP tools beyond resolve_location and get_route.
+- No hardcoded or committed API key; errors redact secrets.
+- Supports departure/arrival time for TRANSIT (never both at once).
+- Supports WALK/DRIVE/BICYCLE/TRANSIT with correct Google enum values.
+- Accepts Place ID, address, coordinate waypoints and rejects invalid unions.
+- No auto-select of ambiguous location; multiple results returned to client.
+- Correct route legs and transit details, actual Google values only.
+- No made-up fees or path geometry; nullable details stay null.
+- Routes and Places use explicit economical field masks, not '*'.
+- All unit tests mock upstream network; CI needs no billing/key.
+- No logs/banners contaminate MCP stdout.
+- The README includes API enablement, quotas, warnings and client setup.
+
+IF GOOGLE SDK/API DOCUMENTATION DIFFERS FROM THE SPEC
+- Prefer current official docs and type-checked SDK interfaces for syntax.
+- Keep the intended two-tool public contract intact whenever possible.
+- Explicitly list any unavoidable compatibility changes and cite the official URL
+  in the final technical handoff. Do NOT guess parameter shapes.
+
+IF THERE IS NO GOOGLE API KEY
+- Complete implementation and mock verification normally.
+- DO NOT fabricate a successful live test. Mark live verification as NOT RUN.
+
+FINAL HANDOFF FORMAT (Codex output)
+1. Summary of implemented work.
+2. Files added/modified.
+3. Exact commands executed and pass/fail output summary.
+4. Confirm exactly two MCP tools and example call shape.
+5. Manual Google Cloud API/key setup steps.
+6. Known technical/API limitations and unverified live items.
+7. Suggested next step (optional, one recommendation only).
+
+OFFICIAL REFERENCE LINKS (verified for planning on 2026-10-28)
+1. Routes Compute Routes REST:
+   https://developers.google.com/maps/documentation/routes/reference/rest/v2/TopLevel/computeRoutes
+2. Routes waypoint contract:
+   https://developers.google.com/maps/documentation/routes/reference/rest/v2/Waypoint
+3. Transit routes and restrictions:
+   https://developers.google.com/maps/documentation/routes/transit-route
+4. Routes field masks:
+   https://developers.google.com/maps/documentation/routes/choose_fields
+5. Route travel modes:
+   https://developers.google.com/maps/documentation/routes/reference/rest/v2/RouteTravelMode
+6. Places Text Search (New):
+   https://developers.google.com/maps/documentation/places/web-service/text-search
+7. Places field masks:
+   https://developers.google.com/maps/documentation/places/web-service/choose-fields
+8. Geocoding API v3 request/response:
+   https://developers.google.com/maps/documentation/geocoding/guides-v3/requests-geocoding
+9. Place ID usage and storage:
+   https://developers.google.com/maps/documentation/places/web-service/place-id
+10. Places API attribution and storage policies:
+   https://developers.google.com/maps/documentation/places/web-service/policies
+
+END OF SPECIFICATION

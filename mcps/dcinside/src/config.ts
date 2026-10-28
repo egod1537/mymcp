@@ -7,6 +7,12 @@ export interface RuntimeConfig {
   dataDir: string;
   searchTimeoutMs: number;
   maxSearchesPerMinute: number;
+  remoteMode: 'disabled' | 'authorized';
+  allowedGalleries: ReadonlySet<string>;
+  remoteRateLimitPerMinute?: number;
+  maxImportedRows: number;
+  maxImportBytes: number;
+  maxSearchProviderPages: number;
 }
 
 function boundedInteger(
@@ -31,6 +37,21 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): RuntimeConfig 
   const key = env.BRAVE_SEARCH_API_KEY?.trim();
   const configuredDataDir = env.DCINSIDE_DATA_DIR?.trim();
 
+  const remoteMode = env.DCINSIDE_REMOTE_MODE?.trim() || 'disabled';
+  if (remoteMode !== 'disabled' && remoteMode !== 'authorized') {
+    throw new DomainError(
+      'CONFIGURATION_REQUIRED',
+      'DCINSIDE_REMOTE_MODE must be disabled or authorized.',
+    );
+  }
+  const allowedGalleries = new Set(
+    (env.DCINSIDE_ALLOWED_GALLERIES ?? '')
+      .split(',')
+      .map((value) => value.trim())
+      .filter(Boolean),
+  );
+  const remoteRateValue = env.DCINSIDE_REMOTE_RATE_LIMIT_PER_MINUTE?.trim();
+
   return {
     ...(key ? { braveSearchApiKey: key } : {}),
     dataDir: resolve(configuredDataDir || resolve(homedir(), '.local/share/mymcp/dcinside')),
@@ -47,6 +68,40 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): RuntimeConfig 
       10,
       1,
       30,
+    ),
+    remoteMode,
+    allowedGalleries,
+    ...(remoteRateValue
+      ? {
+          remoteRateLimitPerMinute: boundedInteger(
+            remoteRateValue,
+            'DCINSIDE_REMOTE_RATE_LIMIT_PER_MINUTE',
+            1,
+            1,
+            60,
+          ),
+        }
+      : {}),
+    maxImportedRows: boundedInteger(
+      env.DCINSIDE_MAX_IMPORTED_ROWS,
+      'DCINSIDE_MAX_IMPORTED_ROWS',
+      1_000,
+      1,
+      10_000,
+    ),
+    maxImportBytes: boundedInteger(
+      env.DCINSIDE_MAX_IMPORT_BYTES,
+      'DCINSIDE_MAX_IMPORT_BYTES',
+      1_048_576,
+      1_024,
+      10_485_760,
+    ),
+    maxSearchProviderPages: boundedInteger(
+      env.DCINSIDE_MAX_SEARCH_PROVIDER_PAGES,
+      'DCINSIDE_MAX_SEARCH_PROVIDER_PAGES',
+      2,
+      1,
+      3,
     ),
   };
 }

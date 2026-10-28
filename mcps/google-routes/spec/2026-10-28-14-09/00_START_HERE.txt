@@ -1,0 +1,67 @@
+GOOGLE MAPS MCP - CODEX EXECUTION SPECIFICATION
+Version: 1.0
+Target: https://github.com/egod1537/mymcp
+Target directory: apps/google-maps/
+Date of spec: 2026-10-28
+Priority: Follow all numbered .txt files in order. This document overrides vague assumptions.
+
+MISSION
+Build a small, production-minded, read-only Google Maps MCP server for:
+  1. Accurately resolving a location into Google Place ID, coordinate and address candidates.
+  2. Computing an actual route between two identified endpoints, including transit directions.
+Only expose TWO MCP tools:
+  - resolve_location
+  - get_route
+Alternative routes are a boolean option of get_route, not a third MCP tool.
+
+IMPORTANT CONTEXT
+The repository may be empty (its GitHub metadata showed size=0 when the spec was drafted).
+Inspect the checked-out tree first. If the previously proposed pnpm monorepo foundation
+exists, integrate with it; if it does not, bootstrap only the minimal foundation needed
+for apps/google-maps. Do not overwrite existing source, change unrelated projects,
+rename repositories or push without explicit authorization.
+
+TECHNOLOGY
+- TypeScript, strict mode, Node.js 22 LTS, pnpm workspaces.
+- Official @modelcontextprotocol/sdk, Zod, Vitest.
+- Stdio transport first; no HTTP server in v1.
+- Native fetch (Node.js); injectable HTTP client for tests.
+- Google APIs: Places API (New) Text Search, Geocoding API v3, Routes API Compute Routes.
+- API key from environment only; Google Cloud billing/API enablement is a manual prerequisite.
+- Use current mutually compatible stable package releases, pin via pnpm-lock.yaml.
+
+OUT OF SCOPE (DO NOT IMPLEMENT)
+- Route matrices, route optimization, traveling-salesperson solving, waypoint reordering.
+- Nearby search, ratings, photos, opening hours, reviews, price data, place discovery feeds.
+- Google Maps scraping, browser automation, Directions API Legacy.
+- Persisted route history, proprietary place databases, background job queues.
+- Remote or public Streamable HTTP hosting, OAuth login or a web UI.
+- Writing to Google Maps, modifying places, or any mutation operations.
+- Integration with Trasolve application in v1.
+
+DELIVERABLES
+- Runnable apps/google-maps MCP server with two usable tools.
+- Workspace config if absent, package.json, TypeScript configs, lockfile.
+- Unit/integration-style MOCK tests, checks, CI, .env.example, .gitignore, README.
+- A documented real-key smoke test that requires explicit opt-in.
+- A final Codex summary of files changed, tests run, limitations and setup instructions.
+
+DEFINITION OF DONE
+1. 'pnpm install --frozen-lockfile', 'pnpm lint', 'pnpm typecheck',
+   'pnpm test', and 'pnpm build' pass in a supported local/CI environment.
+2. MCP initialize and list_tools work through stdout using stdio.
+3. Exactly resolve_location and get_route are listed.
+4. All Google network access is mocked in CI; no key needed for tests/build.
+5. Errors return stable, actionable, non-secret messages.
+6. Key/config/logging never pollutes stdout; no invented route data.
+7. A human can connect the built server to an MCP-compatible client and perform
+   a live smoke test after enabling Google APIs, billing, and supplying a key.
+
+HOW TO RUN CODEX
+Suggested instruction to Codex (paste with these .txt files in the working tree):
+  'Read every spec file from 00_START_HERE.txt to 08_ACCEPTANCE_AND_HANDOFF.txt.
+   Implement all P0 requirements in egod1537/mymcp. Inspect the existing files first,
+   make safe incremental changes, run tests/build, and report results and any blockers.
+   Do not add features excluded by the specification. Do not commit or push unless asked.'
+
+Read next: 01_WORKSPACE_AND_ARCHITECTURE.txt

@@ -1,0 +1,52 @@
+# 09 / 보안, 이용약관, 설정 및 네트워크 안전장치
+
+[중요한 사실]
+2026-10-07 시행 디시인사이드 이용약관 제16조: robots.txt가 허용하는 일부만 크롤링 허용, 사전 서면 동의 없이 어떤 형태/목적의 서비스 크롤링도 금지.
+공식 확인: https://nstatic.dcinside.com/dc/w/policy/policy_index.html
+제3자 GitHub 프로젝트가 존재하거나 오픈소스 라이선스가 있다고 해서 DCInside 콘텐츠 자동 수집 권한이 생기는 것은 아님.
+확장 프로그램을 이용한 사용자 수행도 약관·권리를 별도로 확인해야 하며, 개인용이면 무조건 허용된다고 간주하지 말 것.
+
+[필수 구획]
+1. default: Brave index 검색 + 허용된 사용자 제공 CSV/JSON/본문 데이터 import/lookup.
+2. authorized direct adapter: @gurumnyang/dcinside.js 사용을 구현하되, 직접 사이트 호출은 허용 범위가 문서화된 배포에서만 실행.
+3. 별도 명시적 요구/허가 없이 원격 자동 수집을 활성화하는 CI/기본 설정/콘솔 토글 금지.
+4. CAPTCHA, 403, 429, 로그인벽 발견 시 중단; 회전 프록시/랜덤 UA/비공식 인증 재시도/우회 설계 금지.
+5. 계정/쿠키/작성·삭제·추천 등 mutation 함수를 절대로 MCP Tool에 노출하지 않음.
+
+[환경변수]
+# 기존 유지
+BRAVE_SEARCH_API_KEY=
+DCINSIDE_DATA_DIR=  # optional, default existing home appdata
+DCINSIDE_SEARCH_TIMEOUT_MS=8000
+DCINSIDE_MAX_SEARCHES_PER_MINUTE=10
+# 신규
+DCINSIDE_REMOTE_MODE=disabled  # allowed: disabled,authorized
+DCINSIDE_MAX_IMPORTED_ROWS=1000
+DCINSIDE_MAX_IMPORT_BYTES=1048576
+DCINSIDE_MAX_SEARCH_PROVIDER_PAGES=2
+# authorized 환경에서만 검토될 설정
+DCINSIDE_ALLOWED_GALLERIES=   # 명시적으로 허용된 ID 집합
+DCINSIDE_REMOTE_RATE_LIMIT_PER_MINUTE=  # 제한 내로만; 임의 추측값 자동 채우지 않음
+
+- .env.example에는 빈 플레이스홀더/안전 default만.
+- API Key는 GitHub/콘솔 로그/응답에 절대 노출하지 않음.
+- authorized mode는 env 단일 토글만으로 적법성 보장 불가: 허가 증빙과 허용 범위를 운영 전 검토.
+- direct mode가 설정되었어도 gallery allowlist 없으면 fail-closed.
+
+[SSR(F)/데이터 처리]
+- 입력으로 임의 URL이 들어와도 허용 DC 도메인/path만 parse; 기타 도메인 fetch 금지.
+- CSV sourceUrl은 순수 문자열이며 파일 접근, fetch, link preview X.
+- 로컬 경로 입력은 JSON import Tool에서 허용 X.
+- HTML/CSV/JSON 외부 데이터는 불신 데이터. HTML sanitization, CSV formula injection neutralize on export, XSS 안전 표시.
+- 게시자 IP, 계정 ID, 쿠키, 인증 토큰, 작성자 식별정보를 저장/로그/노출하지 않음.
+- 보관 중인 사용자 Import 데이터는 예기치 않은 공개 업로드/동기화 금지.
+- 운영 로그는 tool name, outcome, duration, category, count만. raw body, URL query/secret, 임의 HTML을 저장하지 말 것.
+
+[성능/오류]
+- strict URL validation, request count bound, timeouts/size limits, circuit breaker, 429 Respect Retry-After.
+- 의존 라이브러리 내부 retry가 중복되면 총 요청이 폭증할 수 있으므로 외부 제한과 통합해서 cap 계산.
+- Promise.race는 실제 HTTP 취소가 아니므로 취소 불가능한 동작을 '취소됨'으로 표시하지 않음.
+- direct 요청 실패 시 Brave/local 데이터로 silently substitute 금지; source mismatch 오류로 보고.
+
+[README 필수 공지]
+'기능 구현'과 '현행 사이트 자동 수집 가능'은 다르다. 허가 없는 상태에서는 live DCInside 읽기를 할 수 없고 local data 또는 Brave index만 조회 가능하다. direct adapter 구현 테스트는 mock으로 검증한다.

@@ -1,0 +1,45 @@
+# 08 / 기존 Palantir Blueprint Console 확장
+
+[기본]
+사용자는 이미 mymcp Console의 Blueprint 기반 통일 디자인을 원한다.
+실제 로컬에 구현된 Console이 있으면 기능만 연동. 없다면 Console 전체를 새로 개발하는 일을 이번 범위에 추가하지 않고, 향후 연결 가능한 REST 엔드포인트/컴포넌트 명세와 최소 mock 화면만 구현할지 판단한 뒤 사용자에게 정확히 보고.
+기술: React + TypeScript + @blueprintjs/core/@blueprintjs/icons/@blueprintjs/table, Dark 기본, Monaco JSON display (현재 UI 구현의 실제 스택을 우선).
+
+[정보구조]
+Sidebar > MCP Servers > DCInside > tabs:
+- Overview: 연결 상태, BRAVE 키 설정 여부(Boolean), direct reader 활성 여부, data source, 최근 오류.
+- Search: Keyword, Gallery ID, Gallery Type, Source(Brave/Local), Sort, Search, Result table.
+- Gallery: galleryId, page, 게시글 목록, source label.
+- Reader: Post URL 입력/복사, 제목/본문, 댓글 트리, loadedCount/partial.
+- Import: deep-search CSV/JSON 파일 drop, preview, import 확인, 이력.
+- Playground: Server tools/list 기반 JSON Schema 자동 form, JSON request/response, latency + error.
+
+[Blueprint 컴포넌트]
+Card, Tabs, Button, InputGroup, HTMLSelect 또는 Select, HTMLTable/Table, Tag, Callout, Spinner, NonIdealState, Toaster, Dialog.
+- 필요 이상 depth를 만들지 말고 상단 필터 + 결과 테이블 + 우측 상세 패널 정도로 구성.
+- .bp6-dark 등 실제 설치한 Blueprint 버전의 권장 테마 적용. CSS 자체 구현은 레이아웃/간격/반응형에 제한.
+- status badge는 실제 health check와 capability result 기반. '키 존재'와 '실제 성공' 구분.
+
+[동작/보안]
+- 검색 결과 클릭 -> Reader. URL 임의 페이지 iframe 렌더 금지, 본문은 plain text/안전 렌더링.
+- 원문 URL은 새 탭으로 열되 URL canonicalizer, host validation 사용.
+- CSV import 전에 preview 및 중복수 표시.
+- direct remote 모드 비활성화면 UI에 '외부 직접 조회는 비활성화됨' Callout, 버튼 disabled와 이유 툴팁.
+- API Key 내용을 프론트에 내리지 않으며, import 파일 원문/게시글 대량 본문을 불필요하게 Telemetry 수집하지 않음.
+- 댓글 대댓글은 접힘/펼침, partial/출처/수집일 표시.
+- 모바일 폭에서는 사이드바 접힘, 필터 vertically stack, Reader 세로형.
+
+[백엔드 연동]
+- Console Backend가 MCP Client를 통해 tools/list / tools/call하는 기존 구조를 재사용.
+- 기존 Console이 없는 경우 API 명세만 정의:
+  GET /api/mcps/dcinside/capabilities
+  POST /api/mcps/dcinside/tool-call   {name,arguments}
+  POST /api/mcps/dcinside/import-preview {format,data}
+실제 auth/session, rate limit, CSP, payload size 제한을 적용해야 구현 가능.
+- 사이트별 HTTP 통신 코드를 Browser로 보내지 말 것. Console Web은 MCP Server에 직접 origin cross-request하지 않음.
+
+[완료 화면 시험]
+1. Brave 키 설정 여부 true, direct mode disabled 상태가 정상 분리됨.
+2. 특정 갤러리 검색 -> 결과 클릭 -> imported post reading -> 댓글 펼치기.
+3. CSV drop -> 2 duplicate rows -> 1 unique preview -> import -> local Search에 결과 반영.
+4. API가 실패하면 구조화된 에러 표시, 무한 Spinner 없음.

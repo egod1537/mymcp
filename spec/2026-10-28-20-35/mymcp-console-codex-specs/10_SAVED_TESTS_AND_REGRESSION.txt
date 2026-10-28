@@ -1,0 +1,58 @@
+PHASE 10 — P1 SAVED TEST CASES, REGRESSION HARNESS, SCHEMA FORMS
+Priority: P1, DO NOT BLOCK P0 SHIPPING
+
+[1] 목적
+- MCP가 늘어날 때 실험 입력을 저장하고 수동 재실행 -> 비교 -> 실패 원인 파악.
+- 개인용 테스트베드이며 대량 스케줄 실행/외부 서비스 비용 증가가 목표가 아님.
+- '검증된 Tool이 현재 빌드에서 동일한 contract를 지키는가'를 판단.
+
+[2] Saved test case data
+- id, name, description
+- serverId, toolName (verified registry + discovered tool only)
+- argumentsJson (user opt-in saved; 적절한 필드 마스킹/secret-ref)
+- expectedIsError?: boolean
+- assertions: [{ path: JSON Pointer, op: exists|equals|type|contains, expected? }]
+- createdAtUtc, updatedAtUtc, schemaSnapshotHash, enabled flag
+- 각 case는 source info (synthetic/user-provided), sensitiveData flag(optional).
+- 기본값: 비밀 값/실제 개인 게시글 본문 저장 불가. Save 시 확인과 민감정보 검사를 실시.
+- input payload를 저장한다면 DB에 소유자-only, file mode/volume control 필수.
+- 공유/공개/클라우드 동기화 기능 없음.
+
+[3] Execution semantics
+- User clicks 'Run Selected' or 'Run All' only; P1에는 자동 스케줄 실행 없음.
+- 순차/제한 동시 실행 (2 per server, global 4).
+- state-changing tool (`dc_import_post` 등)은 bulk regression 기본 제외 및 직접 opt-in.
+- 외부 쿼터 소비 도구(`dc_search_posts`, Google Routes 등)는 default skip 또는 user confirmation.
+- 실제 호출 result의 structuredContent 우선 비교, 없으면 content text safe parse fallback.
+- unstable `importedAt`, timestamps, latency, requestId는 원문 스냅샷 equals가 아닌 assertions로 검증.
+- `NOT_IMPORTED` expected value는 'found:false' 정상 데이터, isError=false로 비교.
+- 결과: passed, failed, skipped, errored, with duration, reason, requestId.
+
+[4] Tests UI
+- `/tests`: server filter, list/search, create/edit/delete, latest result, manual Run.
+- Test editor: Blueprint Dialog + Monaco JSON input, assertions table, Preview.
+- test summary: total/passed/failed/skipped/errored, last run, recent failed.
+- run details: expected vs actual assertions diff; raw result는 현재 세션에서만 표시,
+  영구 저장 시 안전한 non-sensitive summary만 저장.
+- `Save from Playground`는 사용자 명시 버튼으로만, 자동 저장 금지.
+
+[5] Schema forms
+- inputSchema 기반 form 생성 (기본 primitive, nested object, arrays, enums, optional/required).
+- Monaco raw JSON과 form 간 데이터 동기화. schema unsupported field는 raw mode fallback.
+- frontend/server 양측 validation 유지.
+- secret format/password input은 autocomplete/off + result 마스킹.
+
+[6] CLI Regression Runner (optional after UI works)
+- `pnpm console:test-cases --server example --case echo-hello`
+- mock/synthetic input만 CI에 허용. 실제 Brave Search/Google Maps 호출은 CI에서 금지.
+- 실패시 nonzero exit, junit/json summary, 민감 내용 제외.
+- package test 스크립트와 중복되지 않도록 별도 콘솔 회귀 세트.
+
+[7] Acceptance Tests
+[ ] Echo saved scenario 3회 재실행 -> consistent pass.
+[ ] DCInside URL parse sample passes without external API.
+[ ] NOT_IMPORTED expectation test has isError=false.
+[ ] 입력값 자동 영구저장 없음.
+[ ] secret-like fields에 save warning/denial 적용.
+[ ] write tool batch run requires explicit opt-in.
+[ ] P1 미완료여도 P0 화면/빌드/배포 가능.

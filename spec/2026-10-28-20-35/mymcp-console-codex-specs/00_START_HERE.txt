@@ -1,0 +1,94 @@
+MYMCP CONSOLE — CODEX IMPLEMENTATION PLAN
+Spec issued: 2026-10-28 (Asia/Seoul)
+Target: https://github.com/egod1537/mymcp
+Inspected main commit: 0478bd716cd28a041e9acd23691c8a6e2176b6cd
+Environment: Mac mini, TypeScript, pnpm monorepo, Docker Compose
+
+[0] 사용자 결정 사항 — 변경하지 말 것
+- 기존 mymcp 모노레포 안에 통합 MCP 상태 모니터링 + 테스트베드 웹사이트 추가.
+- 프론트엔드는 React + TypeScript + Vite, Palantir Blueprint v6의 UI 컴포넌트로 일관되게 구성.
+- 개발자용 관리 콘솔에 적합한 정보밀도 높은 UI, 다크 모드 기본, 라이트 모드 토글.
+- 데스크톱 우선이지만 모바일에서도 탐색/호출/로그 확인 가능.
+- 백엔드는 Node.js 22 + TypeScript + Fastify.
+- 기존 stdio MCP를 콘솔에서 실행·연결하여 Tools 검색, 호출, 실행 결과를 확인.
+- Docker Compose로 Mac mini에서 개인용 운영. 공개 SaaS, 멀티테넌시, LLM 채팅 앱은 만들지 않음.
+- 기존 MCP 구현과 public tool contract를 고치지 않는 것이 원칙.
+
+[1] 구현 목표
+P0 (이번 작업의 최우선 납품 범위)
+1. 실제 저장소 조사/기존 품질검사 baseline, README와 카탈로그의 상태 불일치 문서 보정.
+2. Console API, MCP stdio connection manager, allowlist 기반 server registry.
+3. 소유자 단일 계정 인증 및 안전한 설정/비밀정보 처리.
+4. Blueprint UI 셸 + Overview, MCP Servers, Tool Explorer, Tool Playground, Execution Logs, Settings.
+5. MCP 초기화/상태 체크, tools/list, JSON Schema, tools/call, 에러 및 결과 표시.
+6. 호출 메타데이터, 장애 로그, 24h/7d/30d 요약(실제 수치만).
+7. Example의 echo, DCInside의 dc_parse_post_url 테스트.
+8. Vitest, Playwright smoke, Docker Compose 실행과 README.
+
+P1 (P0가 모두 완료되면 추가 구현, 단 범위/테스트 분리)
+- Schema-to-form 입력 폼, 편집 가능한 저장 테스트 케이스, 수동 회귀 테스트, 결과 비교.
+- 상세 통계, 차트, 필터 고도화, JSON/CSV 내보내기.
+- 기존 서버의 optional resources/prompts 탐색(해당 capability 제공 시).
+
+P2 (지금 구현하지 않음)
+- UI에서 임의 MCP 추가, 임의 shell command 실행, 임의 remote URL 접속.
+- 사용자 UI로 MCP 관리 배포/업데이트, Docker socket 연결, 서버 start/stop/restart 관리 API.
+- 자동 주기 실행, 외부 서비스 배포, 멀티유저, 직접 DCInside 크롤링, API key 웹 입력/저장.
+
+[2] 확인된 사실과 불확실성
+- package.json: Node >=22, pnpm@12.9.1, ESM, TypeScript strict.
+- pnpm-workspace.yaml: apps/*, mcps/*, packages/*.
+- apps/example: @mymcp/example, stdio, echo tool, MCP SDK 1.32.2.
+- mcps/dcinside: @mymcp/dcinside, stdio, 5개 Tool, MCP SDK 1.32.2.
+- mcps/google-routes 및 mcps/japanese-vocab에 package.json이 존재하지만, docs/mcp-catalog.md상 미검증/마이그레이션 대상.
+- README.md 및 docs/architecture.md 중 일부는 dcinside 구현 전 상태를 설명함. 실제 소스와 workspace 설정을 우선함.
+- 현재 코드 스냅샷에 console-web, console-server는 확인되지 않음. 새로 추가.
+- 구현 시작 시 `git rev-parse HEAD`로 현재 HEAD를 확인. 본 스펙 이후 변경이 있다면 무조건 현재 소스에 맞춰 조정.
+
+[3] 구현 순서 — 각 단계 검증 후 다음 단계
+1) 01_REPOSITORY_AUDIT_AND_INTEGRATION.txt
+2) 02_SYSTEM_ARCHITECTURE_AND_REGISTRY.txt
+3) 03_STDIO_MCP_CLIENT_AND_LIFECYCLE.txt
+4) 04_BACKEND_API_AND_CONTRACTS.txt
+5) 05_AUTH_SECURITY_AND_SECRETS.txt
+6) 06_BLUEPRINT_UI_DESIGN_SYSTEM.txt
+7) 07_DASHBOARD_AND_SERVER_MANAGEMENT.txt
+8) 08_TOOL_EXPLORER_AND_PLAYGROUND.txt
+9) 09_LOGGING_METRICS_AND_HISTORY.txt
+10) 10_SAVED_TESTS_AND_REGRESSION.txt (P1 별도)
+11) 11_DOCKER_MACMINI_DEPLOYMENT.txt
+12) 12_TESTING_CI_AND_HANDOFF.txt
+
+[4] Codex 실행 규칙
+- 사용자의 추가 질문을 기다리지 말고 위 확정 정책대로 구현. 필수 정보가 없는 경우 안전한 기본값 + .env.example에 설명.
+- 기존 MCP의 API/동작/정책은 변경하지 말 것. 특별히 dcinside 직접 크롤링이나 보호 우회 기능 절대 추가 금지.
+- 모노레포 `apps/*`, `packages/*`, `mcps/*` 현황 확인 후 최소 변경 원칙.
+- 각 단계 말미 `pnpm` 작업별 테스트와 타입 체크, 변경 파일 목록, 남은 문제를 기록.
+- 빌드 실패를 무시하거나 테스트를 삭제해 통과시키지 말 것.
+- 실제 비밀값을 코드, 브라우저 번들, 결과 로그, 샘플, Git commit에 넣지 말 것.
+- 검증되지 않은 성능/상태를 Running 또는 Healthy로 표시 금지.
+- 예시 데이터는 Mock이라고 표시. 사용자 데이터와 샘플 DB 절대 섞지 말 것.
+- 코드 구현 후 `docs/console/`에 아키텍처/설정/운영/테스트/제약 문서 작성.
+- 기존 MCP SDK v1을 그대로 사용하는 P0를 우선. SDK v2로 전면 업그레이드하는 별도 이슈는 만들 수 있으나 이번 작업에 포함하지 말 것.
+
+[5] 기대 산출물
+- apps/console-web/                     React/Vite + Blueprint UI
+- apps/console-server/                  Fastify, 인증, 레지스트리, MCP 관리, DB, 로그
+- packages/mcp-client/                  SDK v1 기반 재사용 가능한 stdio client adapter
+- packages/console-contracts/           API DTO/validation schema
+- config/mcp-registry.json              개발자가 관리하는 allowlisted MCP registry
+- docker-compose.console.yml           Mac mini 대상 배포
+- docs/console/                         설치/운영/보안/테스트 문서
+- .env.console.example                  민감정보 없는 설정 템플릿
+- P0/P1 테스트, CI 연동, 실제 동작 검증 결과
+
+[6] 성공 기준 한 줄
+`docker compose -f docker-compose.console.yml up -d --build` 후 인증을 통과하여
+Example echo와 DCInside URL parse Tool을 실제 MCP 프로토콜로 호출하고 결과/시간/상태/로그를
+Blueprint 콘솔에서 확인한다. 기타 미검증 MCP는 미검증 상태로 정확히 표시한다.
+
+[7] 공식 참조
+Blueprint: https://blueprintjs.com/docs/
+MCP TypeScript SDK v1 Client: https://ts.sdk.modelcontextprotocol.io/client
+MCP TypeScript SDK v2: https://ts.sdk.modelcontextprotocol.io/v2/
+Repository: https://github.com/egod1537/mymcp

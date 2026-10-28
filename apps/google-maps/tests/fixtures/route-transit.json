@@ -1,0 +1,75 @@
+{
+  "routes": [
+    {
+      "distanceMeters": 12345,
+      "duration": "2420s",
+      "description": "Synthetic transit route",
+      "routeLabels": ["DEFAULT_ROUTE"],
+      "warnings": ["Synthetic provider warning"],
+      "legs": [
+        {
+          "startLocation": { "latLng": { "latitude": 35.1, "longitude": 139.1 } },
+          "endLocation": { "latLng": { "latitude": 35.2, "longitude": 139.2 } },
+          "steps": [
+            {
+              "travelMode": "TRANSIT",
+              "distanceMeters": 12000,
+              "staticDuration": "3.5s",
+              "navigationInstruction": { "instructions": "Board the synthetic train" },
+              "startLocation": {
+                "latLng": { "latitude": 35.11, "longitude": 139.11 }
+              },
+              "endLocation": {
+                "latLng": { "latitude": 35.19, "longitude": 139.19 }
+              },
+              "transitDetails": {
+                "stopDetails": {
+                  "departureStop": {
+                    "name": "Mock Origin Stop",
+                    "location": {
+                      "latLng": { "latitude": 35.11, "longitude": 139.11 }
+                    }
+                  },
+                  "arrivalStop": {
+                    "name": "Mock Destination Stop",
+                    "location": {
+                      "latLng": { "latitude": 35.19, "longitude": 139.19 }
+                    }
+                  },
+                  "departureTime": "2027-02-27T00:30:00Z",
+                  "arrivalTime": "2027-02-27T01:10:00Z"
+                },
+                "localizedValues": {
+                  "departureTime": {
+                    "time": { "text": "09:30" },
+                    "timeZone": "Asia/Tokyo"
+                  },
+                  "arrivalTime": {
+                    "time": { "text": "10:10" },
+                    "timeZone": "Asia/Tokyo"
+                  }
+                },
+                "transitLine": {
+                  "name": "Mock Rail Line",
+                  "nameShort": "MR",
+                  "vehicle": { "type": "RAIL" }
+                },
+                "headsign": "Mock Terminus",
+                "stopCount": 4
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "distanceMeters": 12500,
+      "duration": "2500s",
+      "description": "Synthetic alternate route",
+      "routeLabels": ["DEFAULT_ROUTE_ALTERNATE"],
+      "warnings": [],
+      "legs": []
+    }
+  ],
+  "fallbackInfo": { "routingMode": "TRAFFIC_UNAWARE", "reason": "SERVER_ERROR" }
+}

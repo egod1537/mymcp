@@ -118,6 +118,13 @@ function sanitizeSearchQuery(query: string): string {
   return sanitized;
 }
 
+export function buildBraveQuery(input: Pick<SearchPostsInput, 'query' | 'galleryId'>): string {
+  const query = sanitizeSearchQuery(input.query);
+  return input.galleryId
+    ? `site:gall.dcinside.com "id=${input.galleryId}" ${query}`
+    : `site:gall.dcinside.com ${query}`;
+}
+
 function retryAfterMilliseconds(response: Response, fallback: number): number {
   const value = response.headers.get('retry-after');
   if (!value) return fallback;
@@ -157,7 +164,7 @@ export class BraveSearchProvider implements SearchProvider {
   constructor(options: BraveSearchProviderOptions = {}) {
     this.apiKey = options.apiKey?.trim() || undefined;
     this.timeoutMs = options.timeoutMs ?? 8_000;
-    this.fetchImpl = options.fetchImpl ?? globalThis.fetch;
+    this.fetchImpl = options.fetchImpl ?? globalThis.fetch.bind(globalThis);
     this.rateLimiter = options.rateLimiter ?? processLimiter(options.maxSearchesPerMinute ?? 10);
     this.wait = options.sleep ?? sleep;
   }
@@ -175,58 +182,66 @@ export class BraveSearchProvider implements SearchProvider {
     if (!this.apiKey) {
       throw new DomainError(
         'CONFIGURATION_REQUIRED',
-        'Set BRAVE_SEARCH_API_KEY to use dc_search_posts; local parse/import/get tools work without it.',
+        'Set BRAVE_SEARCH_API_KEY to use dc_search_posts.',
         false,
       );
     }
-    this.rateLimiter.take();
-
-    const requestUrl = new URL(BRAVE_SEARCH_ENDPOINT);
-    requestUrl.searchParams.set(
-      'q',
-      `site:gall.dcinside.com ${sanitizeSearchQuery(request.query)}`,
-    );
-    requestUrl.searchParams.set('country', 'KR');
-    requestUrl.searchParams.set('search_lang', 'ko');
-    requestUrl.searchParams.set('ui_lang', 'ko-KR');
-    requestUrl.searchParams.set('result_filter', 'web');
-    requestUrl.searchParams.set('safesearch', 'moderate');
-    requestUrl.searchParams.set('text_decorations', 'false');
-    requestUrl.searchParams.set('count', String(request.limit));
-    requestUrl.searchParams.set('offset', '0');
-    const freshness = FRESHNESS_VALUES[request.freshness];
-    if (freshness) requestUrl.searchParams.set('freshness', freshness);
-
-    const payload = await this.request(requestUrl);
     const hits: IndexedPostHit[] = [];
     const seen = new Set<string>();
-    for (const candidate of readWebResults(payload)) {
-      if (typeof candidate.url !== 'string') continue;
-      let parsed;
-      try {
-        parsed = parseDcPostUrl(candidate.url);
-      } catch {
-        continue;
-      }
-      if (request.galleryId !== undefined && parsed.galleryId !== request.galleryId) continue;
-      if (request.galleryType !== undefined && parsed.galleryType !== request.galleryType) continue;
-      if (seen.has(parsed.canonicalUrl)) continue;
-      seen.add(parsed.canonicalUrl);
+    let totalFetched = 0;
+    const maximumPages = request.maxPages;
+    for (let page = 0; page < maximumPages && hits.length < request.limit; page += 1) {
+      this.rateLimiter.take();
+      const requestUrl = new URL(BRAVE_SEARCH_ENDPOINT);
+      requestUrl.searchParams.set('q', buildBraveQuery(request));
+      requestUrl.searchParams.set('country', 'KR');
+      requestUrl.searchParams.set('search_lang', 'ko');
+      requestUrl.searchParams.set('ui_lang', 'ko-KR');
+      requestUrl.searchParams.set('result_filter', 'web');
+      requestUrl.searchParams.set('safesearch', 'moderate');
+      requestUrl.searchParams.set('text_decorations', 'false');
+      requestUrl.searchParams.set('count', String(request.limit));
+      requestUrl.searchParams.set('offset', String(page));
+      const freshness = FRESHNESS_VALUES[request.freshness];
+      if (freshness) requestUrl.searchParams.set('freshness', freshness);
+      const candidates = readWebResults(await this.request(requestUrl));
+      totalFetched += candidates.length;
+      for (const candidate of candidates) {
+        if (typeof candidate.url !== 'string') continue;
+        let parsed;
+        try {
+          parsed = parseDcPostUrl(candidate.url);
+        } catch {
+          continue;
+        }
+        if (request.galleryId !== undefined && parsed.galleryId !== request.galleryId) continue;
+        if (request.galleryType !== undefined && parsed.galleryType !== request.galleryType)
+          continue;
+        if (seen.has(parsed.canonicalUrl)) continue;
+        seen.add(parsed.canonicalUrl);
 
-      const date = cleanProviderText(candidate.age, 100);
-      hits.push({
-        title: cleanProviderText(candidate.title, 500),
-        url: parsed.canonicalUrl,
-        snippet: cleanProviderText(candidate.description, 2_000),
-        galleryId: parsed.galleryId,
-        galleryType: parsed.galleryType,
-        postNo: parsed.postNo,
-        ...(date ? { dateLabel: `search-index age: ${date}` } : {}),
-      });
-      if (hits.length >= request.limit) break;
+        const date = cleanProviderText(candidate.age, 100);
+        hits.push({
+          title: cleanProviderText(candidate.title, 500),
+          url: parsed.canonicalUrl,
+          snippet: cleanProviderText(candidate.description, 2_000),
+          galleryId: parsed.galleryId,
+          galleryType: parsed.galleryType,
+          postNo: parsed.postNo,
+          ...(date ? { dateLabel: `search-index age: ${date}` } : {}),
+        });
+        if (hits.length >= request.limit) break;
+      }
+      if (candidates.length === 0) break;
     }
 
-    return { results: hits };
+    return {
+      results: hits,
+      totalFetched,
+      ...(hits.length === 0
+        ? { reason: totalFetched > 0 ? 'gallery-filtered-out' : 'no-index-match' }
+        : {}),
+    };
   }
 
   private async request(url: URL): Promise<unknown> {
@@ -237,7 +252,7 @@ export class BraveSearchProvider implements SearchProvider {
       try {
         response = await this.fetchImpl(url, {
           method: 'GET',
-          redirect: 'error',
+          redirect: 'manual',
           signal: controller.signal,
           headers: {
             accept: 'application/json',

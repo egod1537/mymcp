@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "source": "user_import",
+  "canonicalUrl": "https://gall.dcinside.com/board/view/?id=test&no=1",
+  "galleryId": "test",
+  "galleryType": "major",
+  "postNo": "1",
+  "title": "legacy",
+  "bodyText": "v1 body",
+  "comments": [],
+  "importedAt": "2026-10-28T00:00:00.000Z"
+}

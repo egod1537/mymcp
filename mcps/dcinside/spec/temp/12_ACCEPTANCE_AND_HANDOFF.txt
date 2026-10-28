@@ -1,0 +1,55 @@
+# 12 / 최종 인수 조건과 Codex 결과 보고 형식
+
+[사용자 시나리오 1: 갤러리 한정 검색]
+Given Brave API Key exists
+When dc_search_posts(query='항공',galleryId='japan',galleryType='minor')
+Then 모든 결과 galleryId='japan', source/coverageNote 표시,
+     필터링으로 0개가 발생한 이유 안내 및 제한된 비용 범위 내 Query 개선 적용.
+
+[시나리오 2: deep-search 활용]
+Given 사용자가 기존 Chrome 확장 프로그램에서 CSV export
+When dc_import_search_results(format='csv',data='<사용자 제공 CSV>')
+Then canonical URL 1건당 record 하나로 정규화하고 matchedKeywords 누적,
+     import summary, source='deep_search_export', importedAt 저장.
+And 이후 dc_search_posts(source='local')에 결과 등장.
+
+[시나리오 3: 본문/댓글]
+Given 기존 dc_import_post로 제공한 글 또는 사용자 제공 단일 HTML import
+When dc_get_post(url), dc_get_comments(url), dc_get_post_with_comments(url)
+Then 본문, 댓글/대댓글, loadedCount/partial, source, 시간 메타데이터 반환.
+And 실제 웹페이지를 다시 fetch하지 않음.
+
+[시나리오 4: @gurumnyang/dcinside.js 실제 활용]
+Given mock library injection
+When adapter.listGalleryPosts and adapter.getPost are invoked
+Then 실제 npm 패키지 API 계약에 맞는 호출/정규화 테스트가 통과함.
+And default remote disabled 상태에서는 DC 도메인 요청이 0회.
+And 허가된 direct mode가 아직 검증되지 않았다면 실제 live 호출 성공을 주장하지 않음.
+
+[시나리오 5: Blueprint Console]
+Given 앱 구현이 로컬에 존재
+When 검색/Import/Reader/Playground 사용
+Then Blueprint Dark UI 일관성, schema-derived form, source status, import preview, 에러 안내.
+Else Console 연동이 아직 안 된 이유와 추후 연결 API를 정확히 문서화.
+
+[보안 테스트]
+- API Key를 source/log/Tool response에 넣지 않음.
+- 직접 사이트 요청은 default 0회. 토글만 누른다고 권한 검증 우회 X.
+- 로그인, 글쓰기, 삭제, 우회 API 없음.
+- malicious URL/HTML/CSV/IP/수상한 attachments 방어.
+
+[Codex 최종 보고서에 반드시 포함]
+1. 구현한 기능/변경 파일 목록 (경로별).
+2. 실제로 재사용한 GitHub 프로젝트 및 라이선스/버전/동작 mode.
+3. 신규/변경 MCP Tool 이름과 input/output 예제.
+4. lint/typecheck/test/build 각각 명령과 실제 결과 (실행하지 않았다면 미실행 표기).
+5. 직접 DC 크롤링 미활성화 사유와 허가 필요 조건.
+6. 환경변수 목록(값은 출력 금지), 로컬 실행/테스트 절차.
+7. 미구현/불확실 사항(예: 현재 deep-search 확장 버전, comments pagination 지원).
+8. source-of-truth status 업데이트, rollback 방법, staged PR/commit SHA (실제로 만든 경우만).
+
+[참고 공식 정책 및 출처]
+https://nstatic.dcinside.com/dc/w/policy/policy_index.html
+https://github.com/GurumNyang/dcinside.js
+https://github.com/sendhyun/dcinside-deep-search
+https://github.com/egod1537/mymcp

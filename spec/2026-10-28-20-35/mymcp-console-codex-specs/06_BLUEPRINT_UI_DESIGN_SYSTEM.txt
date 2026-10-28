@@ -1,0 +1,88 @@
+PHASE 06 — PALANTIR BLUEPRINT v6 UI DESIGN SYSTEM
+Priority: P0
+
+[1] 고정 기술 스택
+- React + TypeScript + Vite SPA
+- `@blueprintjs/core` v6 계열
+- `@blueprintjs/icons` (Blueprint 버전과 호환)
+- `@blueprintjs/table` (실제 테이블 복잡도가 필요할 때, v6 호환)
+- `@blueprintjs/select` (Tool/Server 검색이 복잡해질 때)
+- Monaco Editor: Playground JSON 입력, 읽기전용 JSON/텍스트 보기.
+- TanStack Query: 서버 상태/Tool 목록/로그 fetch cache/refetch.
+- React Router (또는 동급 안정적 라우터), global store는 최소화.
+- Blueprint CSS, icons CSS, 사용 시 table CSS를 올바른 순서로 import.
+- Tailwind/shadcn/MUI/Ant Design 등 두 번째 UI 시스템을 추가하지 않음.
+- Blueprint Dark Theme class는 설치된 major 버전에 맞게 적용 (`bp6-dark` 확인).
+
+[2] 화면 정체성
+- 이름/브랜딩: `mymcp Console`.
+- 목적: 정보 밀도가 높은, 빠르게 Tool을 발견·호출하고 상태를 진단하는 개인용 운영 콘솔.
+- 임의의 화려한 hero/marketing UI, 큰 공백, 과도한 gradient, 통계 조작 금지.
+- 색상은 Blueprint intent (success/warning/danger/primary) 위주; 나머지는 중립.
+- icon은 Blueprint Icons에서 제공하는 것만 사용하고 의미가 없는 장식 피함.
+- Typography/spacing은 Blueprint 기본값 존중, custom css 최소화. 4px spacing 기반.
+
+[3] Desktop layout
+- 상단 헤더 48~56px: 로고, 선택된 서버/현재 페이지 breadcrumb, theme toggle, 로그인 상태.
+- 좌측 sidebar 220~248px: Overview, MCP Servers, Tool Explorer, Playground,
+  Execution Logs, (P1) Test Cases, Settings.
+- 본문은 full width, 최대 가독성 범위에서 유동. Breadcrumb, page title, 주요 action은 일관된 위치.
+- Tool Playground는 좌측 Tool picker/schema, 중앙 Monaco JSON input, 우측 response or
+  input/output 50:50 split view (화면 폭에 맞게). run button/status/error 항상 노출.
+- tables: compact row height, sortable/filterable, JSON metadata column, empty/error loading states.
+
+[4] Mobile/responsive
+- >= 1200px: sidebar + split work area.
+- 768~1199px: sidebar collapsible, Playground input/output tabs or stacked.
+- <768px: hamburger/drawer sidebar, cards/list view, Playground input/output vertically stacked.
+- Monaco editor minimum height 240px, horizontal internal scroll; body overflow-x 방지.
+- 기본 viewport meta tag, 키보드 포커스, 충분한 hit target.
+- 모바일에서 테이블은 핵심 컬럼 우선/row detail Drawer로 전환.
+
+[5] Blueprint component mapping
+- Layout: Navbar/Drawer/Breadcrumbs/Card/Tabs/Divider 등 실제 API 확인 후 선택.
+- Controls: Button, ButtonGroup, InputGroup, HTMLSelect, Switch, Tooltip, Menu.
+- Status: Tag, Intent, Callout, Spinner, NonIdealState, ProgressBar.
+- Modal: Dialog (write confirmation, error detail), Overlay/Popover.
+- Logs/results: HTMLTable 또는 @blueprintjs/table; large table은 virtualized renderer 고려.
+- Notification: Toaster (최신 v6에서의 static create API 확인).
+- Icons: `@blueprintjs/icons`.
+- 이전 v5 API나 더 이상 지원되지 않는 props를 그대로 사용 금지.
+
+[6] Theme design tokens
+- 기본값 Dark, Light 토글 가능.
+- localStorage에는 theme 선택만 보관(비밀키/response 본문 보관 금지).
+- 기본 대비 WCAG AA 목표, color alone to indicate error 금지, 텍스트 배지 필수.
+- 상태 배지:
+  READY => green + 'Ready'
+  DEGRADED => orange + 'Degraded'
+  ERROR => red + 'Error'
+  NOT_STARTED => gray + 'Not started'
+  UNVERIFIED => neutral 'Unverified' (Error와 구분)
+  DISABLED => gray 'Disabled'
+- 사용자 설정 메모에 user theme choice가 있으면 client-side만 적용.
+
+[7] Routing
+`/overview` -> overview metrics & servers
+`/servers` -> registry table, filters
+`/servers/:serverId` -> server detail, status, tool list, stderr diagnostics
+`/tools` -> cross-server Tool Explorer
+`/playground?server=...&tool=...` -> selected Tool inspector/invoker
+`/logs` -> execution history
+`/settings` -> theme, runtime version, basic help, sanitized configuration indicators
+`/tests` -> P1 saved cases, until implemented hide entry or mark future without dead button.
+
+[8] Loading/Empty/Error rules
+- 실제 수치가 없으면 '--', 'Not yet inspected', 'No calls recorded' 등 truthful empty state.
+- fake chart/stat 화면 금지; UI skeleton 용 mock은 story/test에만 존재.
+- 연결 오류: build missing, not verified, missing credential, timeout 등 원인별 actionable hint.
+- 새로고침 시 tools/list cache server-side 유지 여부 명시.
+- UI 상대시간은 browser timezone으로 표시, 상세 tooltip UTC ISO 제공.
+
+[9] Acceptance Tests
+[ ] 모든 페이지가 Blueprint v6 컴포넌트를 중심으로 구성됨.
+[ ] Dark/Light 모두 hover/active/focus/disabled contrast 정상.
+[ ] 390px 모바일 화면에서 가로 overflow 없음.
+[ ] 서버 0개/Tool 0개/로그 0개 시 empty state 정상.
+[ ] keyboard Tab 접근, Escape 모달 닫기, aria-label, focus visible.
+[ ] network 401 시 안전하게 Login UI 전환, API 내부 에러 stack 미노출.

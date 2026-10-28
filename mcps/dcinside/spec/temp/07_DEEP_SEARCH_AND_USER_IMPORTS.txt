@@ -1,0 +1,47 @@
+# 07 / deep-search 연동: CSV/JSON/HTML 가져오기
+
+[핵심: 실제 오픈소스 활용]
+sendhyun/dcinside-deep-search 확장 프로그램으로 사용자가 직접 검색 -> CSV를 내보냄 -> mymcp Console/MCP에서 파일을 가져와 인덱싱한다.
+실제 확장 프로그램을 수정/복제할 필요 없이 호환되며, 원본 README와 src/csv.js에서 확인한 컬럼명을 그대로 매핑.
+
+[입력 데이터]
+CSV 컬럼:
+ index,galleryId,keyword,searchType,title,author,date,views,recommends,commentCount,postId,url,searchStep,sourceUrl
+선택적 파일 형식: 같은 의미의 JSON array 또는 {results:[...]}.
+CSV는 UTF-8 with/without BOM, CRLF/LF, quoted comma/newline, escapings 지원.
+검증되지 않은 CSV의 파일 경로를 수신하지 말고 파일 내용만 Tool 인자로 받는다. Console file upload는 브라우저에서 내용을 읽은 다음 authenticated API에 전송.
+
+[스키마/정규화]
+- required: galleryId, postId OR URL, title, canonical DCInside URL.
+- galleryId/postId는 URL과 비교해 불일치 시 reject, 보고용 diagnostics 기록.
+- sourceUrl은 untrusted evidence로 유지하되 href 임의 오픈 금지.
+- author/IP는 기본 저장 대상에서 제외; 원본 CSV에 있어도 metadata를 저장하지 않음.
+- keyword -> matchedKeywords, date는 formatted dateLabel로 저장 (자동 timezone 추측 X).
+- views/recommends/commentCount 숫자 parsing은 유효한 양의 정수만; 불명확하면 null.
+- searchStep과 sourceUrl은 선택적 import provenance로 사용.
+- 1000행/1MiB 제한, 파싱 시간/메모리 상한. streaming CSV parser 사용 권장.
+- 저장은 local searchable index에 병합; import 내용으로 기존 글 본문/댓글 덮어쓰기 금지.
+- 기본 replace=false, canonicalURL keyed upsert 및 키워드 집합 dedupe.
+
+[브라우저와 웹 UI]
+Console에서 'DCInside -> Import results'에 Drag&Drop 또는 파일 선택 제공.
+업로드 전 preview 테이블: 총건수, 유효/거부/중복 수, 갤러리, 컬럼 맵핑. 개인정보로 보일 만한 author/IP 컬럼은 기본 숨김.
+사용자가 'Import' 승인한 뒤에만 저장. 브라우저 데이터를 external service로 전송하지 않음.
+Console 없이도 dc_import_search_results Tool로 동등하게 동작.
+선택적 단일 게시글 Import: 사용자가 브라우저에서 저장한 HTML 텍스트를 dc_import_post_html로 전달, 또는 기존 dc_import_post 사용.
+
+[그림자 분리]
+- deep-search 자체의 '다음 검색 링크 자동 탐색' 기능을 재구현하거나 백엔드에서 DC site 자동 순회하지 않음.
+- deep-search 기존 프로그램의 CSV가 없는 환경에 대비해 mymcp 자체 JSON importer를 제공.
+- source='deep_search_export', capturedAt='import time', sourceTimestamp(있으면)는 별도. source를 '실시간'으로 표시하지 않음.
+
+[CSV 예시 - synthetic fixture]
+index,galleryId,keyword,searchType,title,author,date,views,recommends,commentCount,postId,url,searchStep,sourceUrl
+1,japan,항공,search_subject_memo,시험용 글,,2026.10.01,14,3,2,123,https://gall.dcinside.com/mgallery/board/view/?id=japan&no=123,0,https://gall.dcinside.com/mgallery/board/lists/?id=japan
+2,japan,취업,search_subject_memo,시험용 글,,2026.10.01,14,3,2,123,https://gall.dcinside.com/mgallery/board/view/?id=japan&no=123,1,https://gall.dcinside.com/mgallery/board/lists/?id=japan
+예상: accepted unique=1, duplicates=1, matchedKeywords=['항공','취업'].
+
+[테스트]
+- CSV quoting, BOM, unicode, 악성 Excel formula 텍스트, mismatch id/postNo, malformed URL.
+- duplicate across separate imports, consecutive imports, partial parse, 1001 rows, oversize.
+- sourceUrl에 file/javascript/private host 입력 시 경로로 읽거나 네트워크 호출하지 않음.

@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createServer } from '../src/server.js';
 import { PostStore } from '../src/store/post-store.js';
 import type { SearchProvider } from '../src/providers/search-provider.js';
+import { SearchIndexStore } from '../src/store/search-index.js';
 
 function structured(result: unknown): Record<string, unknown> {
   return (result as { structuredContent?: unknown }).structuredContent as Record<string, unknown>;
@@ -37,6 +38,7 @@ describe('DCInside MCP tools', () => {
     const server = createServer({
       searchProvider: { searchIndexedPosts: search },
       postStore: new PostStore(directory),
+      searchIndex: new SearchIndexStore(directory),
       now: () => currentTime,
     });
     client = new Client({ name: 'dcinside-test', version: '1.0.0' });
@@ -54,12 +56,16 @@ describe('DCInside MCP tools', () => {
     await rm(directory, { recursive: true, force: true });
   });
 
-  it('registers exactly the five P0 tools with explicit descriptions and schemas', async () => {
+  it('registers the compatible and extended tools with explicit descriptions and schemas', async () => {
     const tools = (await client.listTools()).tools;
     expect(tools.map(({ name }) => name).sort()).toEqual([
       'dc_get_comments',
       'dc_get_post',
+      'dc_get_post_with_comments',
       'dc_import_post',
+      'dc_import_post_html',
+      'dc_import_search_results',
+      'dc_list_gallery_posts',
       'dc_parse_post_url',
       'dc_search_posts',
     ]);
@@ -67,6 +73,16 @@ describe('DCInside MCP tools', () => {
       expect(tool.description?.length).toBeGreaterThan(20);
       expect(tool.inputSchema.type).toBe('object');
     }
+    const resources = await client.listResources();
+    expect(resources.resources).toContainEqual(
+      expect.objectContaining({ uri: 'dcinside://capabilities' }),
+    );
+    const capabilities = await client.readResource({ uri: 'dcinside://capabilities' });
+    expect(JSON.parse((capabilities.contents[0] as { text: string }).text)).toMatchObject({
+      remoteReadEnabled: false,
+      localImportEnabled: true,
+      directReadStatus: 'disabled',
+    });
   });
 
   it('parses URLs and returns transparent indexed-search provenance', async () => {
@@ -87,7 +103,13 @@ describe('DCInside MCP tools', () => {
 
     const searched = await client.callTool({
       name: 'dc_search_posts',
-      arguments: { query: '일본 교환학생', galleryId: 'japan', galleryType: 'minor', limit: 5 },
+      arguments: {
+        query: '일본 교환학생',
+        galleryId: 'japan',
+        galleryType: 'minor',
+        source: 'brave',
+        limit: 5,
+      },
     });
     expect(structured(searched)).toMatchObject({
       query: '일본 교환학생',
@@ -101,6 +123,9 @@ describe('DCInside MCP tools', () => {
       galleryType: 'minor',
       freshness: 'any',
       limit: 5,
+      sort: 'relevance',
+      source: 'brave',
+      maxPages: 1,
     });
   });
 
@@ -136,6 +161,7 @@ describe('DCInside MCP tools', () => {
       source: 'user_import',
       title: '사용자 제목',
       bodyText: '첫 줄\n둘째 줄',
+      note: '메모',
       commentCount: 2,
     });
 
@@ -193,5 +219,78 @@ describe('DCInside MCP tools', () => {
     });
     expect(oversized.isError).toBe(true);
     expect(structured(oversized)).toMatchObject({ code: 'INPUT_INVALID' });
+  });
+
+  it('imports deep-search CSV, merges duplicate keywords, lists, and searches locally', async () => {
+    const data = [
+      'index,galleryId,keyword,searchType,title,author,date,views,recommends,commentCount,postId,url,searchStep,sourceUrl',
+      '1,japan,항공,search_subject_memo,"시험용, 글",ignored,2026.10.01,14,3,2,123,https://gall.dcinside.com/mgallery/board/view/?id=japan&no=123,0,javascript:ignored',
+      '2,japan,취업,search_subject_memo,"시험용, 글",ignored,2026.10.01,14,3,2,123,https://gall.dcinside.com/mgallery/board/view/?id=japan&no=123,1,file:///ignored',
+    ].join('\r\n');
+    const imported = await client.callTool({
+      name: 'dc_import_search_results',
+      arguments: { format: 'csv', data },
+    });
+    expect(structured(imported)).toMatchObject({
+      status: 'imported',
+      source: 'deep_search_export',
+      accepted: 1,
+      duplicates: 1,
+      rejected: 0,
+    });
+    expect(JSON.stringify(structured(imported))).not.toContain('ignored');
+
+    const listed = await client.callTool({
+      name: 'dc_list_gallery_posts',
+      arguments: { galleryId: 'japan', galleryType: 'minor', page: 1, limit: 10 },
+    });
+    expect(structured(listed)).toMatchObject({ count: 1, source: 'deep_search_export' });
+
+    const searched = await client.callTool({
+      name: 'dc_search_posts',
+      arguments: {
+        query: '시험용',
+        galleryId: 'japan',
+        source: 'local',
+        keywords: ['항공', '취업'],
+      },
+    });
+    expect(structured(searched)).toMatchObject({ provider: 'local', count: 1 });
+    expect(
+      (structured(searched).results as Array<{ matchedKeywords: string[] }>)[0]?.matchedKeywords,
+    ).toEqual(['항공', '취업']);
+  });
+
+  it('imports supplied HTML without fetching and exposes one combined snapshot', async () => {
+    const url = 'https://gall.dcinside.com/board/view/?id=test&no=77';
+    const imported = await client.callTool({
+      name: 'dc_import_post_html',
+      arguments: {
+        url,
+        html: '<html><head><title>ignored</title><script>alert(1)</script></head><body><h1 data-role="post-title">HTML 제목</h1><div data-role="post-content">본문 <b>텍스트</b><img src="javascript:bad"><img src="https://image.dcinside.com/a.jpg"></div><div data-role="comment" data-comment-id="c1">댓글</div></body></html>',
+      },
+    });
+    expect(structured(imported)).toMatchObject({
+      status: 'saved',
+      bodyLength: '본문 텍스트'.length,
+      commentCount: 1,
+      imageCount: 1,
+    });
+    const combined = await client.callTool({
+      name: 'dc_get_post_with_comments',
+      arguments: { url },
+    });
+    expect(structured(combined)).toMatchObject({
+      found: true,
+      source: 'user_import',
+      post: {
+        title: 'HTML 제목',
+        bodyText: '본문 텍스트',
+        imageUrls: ['https://image.dcinside.com/a.jpg'],
+      },
+      comments: { loadedCount: 1, partial: false },
+    });
+    expect(JSON.stringify(structured(combined))).not.toContain('alert');
+    expect(JSON.stringify(structured(combined))).not.toContain('javascript:');
   });
 });

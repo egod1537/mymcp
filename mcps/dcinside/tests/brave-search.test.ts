@@ -10,6 +10,9 @@ const input = (overrides: Partial<SearchPostsInput> = {}): SearchPostsInput => (
   query: '일본 교환학생',
   freshness: 'any',
   limit: 10,
+  sort: 'relevance',
+  source: 'brave',
+  maxPages: 1,
   ...overrides,
 });
 
@@ -97,6 +100,9 @@ describe('BraveSearchProvider', () => {
     );
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(new URL(String(fetchMock.mock.calls[0]?.[0])).searchParams.get('q')).toBe(
+      'site:gall.dcinside.com "id=japan" 일본 교환학생',
+    );
     expect(result.results).toEqual([
       {
         title: 'Eligible & indexed',

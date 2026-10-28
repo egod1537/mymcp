@@ -1,0 +1,71 @@
+# 10 / 테스트 전략, Fixture, 품질 게이트
+
+[기본 명령]
+pnpm --filter @mymcp/dcinside lint
+pnpm --filter @mymcp/dcinside typecheck
+pnpm --filter @mymcp/dcinside test
+pnpm --filter @mymcp/dcinside build
+pnpm lint && pnpm typecheck && pnpm test && pnpm build
+
+[테스트 단위]
+A. 기존 MCP 프로토콜 스냅샷
+ - InMemoryTransport 기반 tools/list에 기존 5 tools 유지 + 신규 tools 등록.
+ - dc_search_posts, dc_get_post, dc_get_comments 기존 입력/출력 구조 유지.
+ - root validation 및 strict TS compile 통과.
+
+B. @gurumnyang/dcinside.js adapter (mock)
+ - getPostList 호출 옵션 변환 및 응답 매핑.
+ - getPost Post.comments mapping, is partial semantics.
+ - search(query,sort) normalization.
+ - remote disabled이면 모듈 호출/외부 네트워크 0회.
+ - authorized mode라도 allowlist 미매칭 -> fail closed.
+ - 라이브러리 예외, null 반환, timeout, non-string postNo.
+
+C. Gallery search
+ - query builder galleryId 반영, fallback 예산 상한.
+ - 타 갤러리 섞임 없음, canonical duplicate 제거.
+ - relevance score, inferredLatest vs verifiedDate, stable sort.
+ - Brave 401, 429, 500, timeout; API key 누락 상태.
+ - 쿼리 200자 초과, galleryId injection, source mismatch.
+
+D. Deep Search CSV/JSON importer
+ - UTF-8 BOM/CRLF/quoted newline/escaped quotes.
+ - CSV 컬럼 유효/누락, 악성 행/URL, duplicate, 여러 키워드.
+ - galleryId와 URL 불일치 reject, 1MiB 초과/1001행 거부.
+ - CSV author 값 및 IP가 파일 저장 후 노출되지 않음.
+ - import 된 검색 목록에는 본문이 없는 상태 contentAvailable=false.
+
+E. HTML / comments
+ - 본문·댓글 텍스트만 parse, XSS/HTML entity/Unicode.
+ - comment parent id, date, page 0/limit 30, 0/다수, partial.
+ - 이미지 URL allowlist; 이미지 다운로드 없음.
+ - schema v1 파일 read backward compatibility, corrupted record error.
+
+F. Blueprint Console (존재할 때)
+ - Sidebar/Tab 이동, source/select/permission disabled, Preview->Confirm->Import->Search, reader comments.
+ - API 에러/큰 응답/모바일 레이아웃/접근 권한.
+
+[Fixture 구성]
+mcps/dcinside/tests/fixtures/ 아래 synthetic mock data:
+- brave/search-gallery-filtered.json
+- deep-search/results-multi-keyword.csv
+- deep-search/results-invalid.csv
+- posts/post-with-comments.json
+- posts/post-empty.html
+- posts/post-with-image.html
+- posts/legacy-v1-record.json
+- dcinside-js/library-get-post.json
+- dcinside-js/library-get-post-list.json
+fixture는 실제 사용자 개인정보/실제 DC 서비스 요청을 포함하지 않고 가상의 URL/ID 조합만 사용.
+
+[자동화 테스트 안전]
+- 기본 테스트에서 api.search.brave.com조차 mock, DCInside host에 live 요청 금지.
+- 별도 opt-in live smoke 스크립트는 운영 허가/키/허용 구간이 확인되기 전까지 실행 불가.
+- network spy 또는 test runtime global fetch guard로 차단 검증.
+- 테스트는 retry/outbound count를 assertions로 확인.
+
+[기능별 Exit Criteria]
+- 입력 schema와 실제 응답 일치, readOnly annotation 일치.
+- 매개변수 오류는 명확한 에러 코드로 보고, 정상 empty 결과와 구별.
+- v1 데이터 migration 없이 조회 가능.
+- 모든 신규 feature마다 최소 happy/edge/security case.

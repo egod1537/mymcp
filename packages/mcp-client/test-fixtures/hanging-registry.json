@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "servers": [
+    {
+      "id": "hanging",
+      "displayName": "Hanging fixture",
+      "description": "Process fixture that never completes an MCP handshake.",
+      "catalogState": "supported",
+      "transport": "stdio",
+      "command": "node",
+      "args": ["packages/mcp-client/test-fixtures/hanging.js"],
+      "cwd": "packages/mcp-client",
+      "requiredBuildPackage": "@mymcp/mcp-client",
+      "permittedEnvironmentKeys": [],
+      "launchByDefault": false
+    }
+  ]
+}

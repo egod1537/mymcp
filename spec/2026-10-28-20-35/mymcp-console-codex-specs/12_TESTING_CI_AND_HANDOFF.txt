@@ -1,0 +1,93 @@
+PHASE 12 — QUALITY, TEST MATRIX, CI, RELEASE & HANDOFF
+Priority: P0 final gate, P1 regression cases separate
+
+[1] 테스트 계층
+Unit (Vitest)
+- registry schema/path allowlist, state transitions, secret redaction, API DTO, log aggregation.
+- Tool JSON Schema validation, request limits, error mapping, write classification.
+- password verification, session issuance, expiry, CSRF, unauthorized requests.
+
+Protocol integration
+- SDK InMemoryTransport to verify client list/call semantics without external API.
+- Actual `StdioClientTransport` -> built `apps/example/dist/index.js` echo.
+- Actual `StdioClientTransport` -> `mcps/dcinside/dist/index.js` local parse.
+- DCInside five Tool names exactly match current contract.
+- `dc_search_posts` without key -> CONFIGURATION_REQUIRED (not network success).
+- DCInside tests MUST NOT call actual DCInside website or real Brave API in CI.
+- user imported data scenarios run only in isolated temporary `DCINSIDE_DATA_DIR`.
+
+HTTP API integration
+- Fastify inject with login -> inspect -> tools -> call -> event persisted.
+- 401/403/404/409/429/502/503/504 cases and stable error codes.
+- invalid schema, large payload, unknown server/tool, unsupported/unverified block.
+- login rate limiting, session regeneration/revocation, csrf/origin.
+- concurrent inspect only spawns one child, process unexpected exit recovery.
+
+Frontend (Playwright recommended)
+- desktop 1440px and mobile 390px.
+- Login -> Overview -> Example inspect -> echo call -> Logs entry.
+- Server list shows DCInside + Google Routes/Japanese Vocab unverified.
+- Tool Explorer dynamic discovery, Playground JSON validation + output.
+- Dark/Light toggle persists, no overflow, keyboard focus and modal.
+- disconnected/empty/error states.
+
+Docker smoke
+- `docker compose -f docker-compose.console.yml up -d --build`.
+- localhost health -> login -> inspect echo -> call echo -> logs count.
+- `dc_parse_post_url` test with no Brave key.
+- restart -> metrics persisted -> no leftover child process.
+
+[2] CI
+- Extend existing `.github/workflows/ci.yml` minimally.
+- Keep Node22/pnpm12.9.1, existing format/lint/typecheck/test/build.
+- New console packages included with TSX lint and browser env settings.
+- Browser E2E step may run separately after production build and Playwright browser installation.
+- Docker smoke optional dedicated job; linux/arm64 build when feasible.
+- No private API keys in default CI. No network-dependent E2E external API calls.
+- No `continue-on-error:true` masking critical failures.
+
+[3] P0 E2E acceptance checklist
+[ ] `mymcp Console` login works; unauth cannot see runtime/tool metadata.
+[ ] Overview shows registry statuses honestly, with example and dcinside supported.
+[ ] google-routes, japanese-vocab listed as unverified until validated.
+[ ] Example inspect => echo discovered; `{message:'hello'}` => response hello.
+[ ] DCInside inspect => exactly five tools, `dc_parse_post_url` works offline.
+[ ] Tool result includes duration/status/structuredContent if present.
+[ ] `dc_import_post` requires explicit write confirmation.
+[ ] Tool errors are distinguishable from HTTP/process failures.
+[ ] Logs and metrics use actual events only, no sample production stats.
+[ ] Secret redaction, CSRF, rate limits, size limits enforced.
+[ ] Mac mini Docker Compose startup/upgrade/stop documented and verified.
+[ ] Desktop and mobile responsive, all primary UI Blueprint v6, dark/light.
+[ ] Existing MCP tests still pass, public Tool contracts preserved.
+
+[4] Deliverable docs
+- README: Console overview and link to app docs.
+- `docs/console/setup.md` (clean clone + install + local dev).
+- `docs/console/architecture.md` (browser -> API -> SDK -> process, same origin).
+- `docs/console/registry.md` (verified vs unverified, enable procedure).
+- `docs/console/security.md` (single-owner password, CSRF, secrets, remote access).
+- `docs/console/operations.md` (Mac mini Docker, volumes, backups, upgrades).
+- `docs/console/testing.md` (unit/protocol/API/E2E/manual tests).
+- `docs/console/known-limitations.md` (P1/P2, MCP v1/v2 migration issue).
+- `.env.console.example` safe and with documented comments.
+
+[5] Codex final response expectations
+- Implemented phase/P0/P1 scope explicitly distinguished.
+- Changed paths and why, new scripts/URLs/ports.
+- Actual test commands with PASS/FAIL results, not claims without execution.
+- Container startup confirmed or precise blocker if Docker unavailable.
+- Any baseline failures inherited from old repository distinguished from new failures.
+- Security decisions and remote access caution.
+- Remaining P1 tasks as discrete tickets, not half-working UI buttons.
+- No fabricated screenshot, metric, server status, benchmark or file.
+
+[6] Explicit non-goals for this handoff
+- Do not rewrite mymcp as a hosted external MCP service.
+- Do not introduce a cloud user database or payment/account management.
+- Do not replace stdio servers with HTTP to serve the console.
+- Do not fetch/crawl DCInside directly or bypass their restrictions.
+- Do not access arbitrary filesystem paths or shell commands from browser.
+- Do not assert Google Routes/Japanese Vocab are working until independent tests verify.
+
+END OF SPEC SERIES

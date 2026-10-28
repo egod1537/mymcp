@@ -1,0 +1,10 @@
+[
+  {
+    "id": "123",
+    "title": "mock list item",
+    "link": "/mgallery/board/view/?id=japan&no=123",
+    "count": 10,
+    "recommend": 2,
+    "replyCount": 1
+  }
+]

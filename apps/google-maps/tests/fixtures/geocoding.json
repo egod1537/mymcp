@@ -1,0 +1,14 @@
+{
+  "status": "OK",
+  "results": [
+    {
+      "place_id": "mock-geocode-alpha",
+      "formatted_address": "합성 도로명 주소",
+      "partial_match": true,
+      "geometry": {
+        "location": { "lat": 37.5, "lng": 127.0 },
+        "location_type": "RANGE_INTERPOLATED"
+      }
+    }
+  ]
+}

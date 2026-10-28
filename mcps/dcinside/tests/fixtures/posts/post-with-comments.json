@@ -1,0 +1,9 @@
+{
+  "url": "https://gall.dcinside.com/board/view/?id=test&no=1",
+  "title": "fixture title",
+  "bodyText": "fixture body",
+  "comments": [
+    { "commentId": "c1", "text": "root" },
+    { "commentId": "c2", "parentCommentId": "c1", "text": "reply" }
+  ]
+}

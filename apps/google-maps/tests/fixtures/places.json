@@ -1,0 +1,16 @@
+{
+  "places": [
+    {
+      "id": "mock-place-alpha",
+      "displayName": { "text": "모의 장소 A", "languageCode": "ko" },
+      "formattedAddress": "합성 주소 A",
+      "location": { "latitude": 35.1, "longitude": 139.1 }
+    },
+    {
+      "id": "mock-place-beta",
+      "displayName": { "text": "モック場所 B", "languageCode": "ja" },
+      "formattedAddress": "Synthetic address B",
+      "location": { "latitude": 35.2, "longitude": 139.2 }
+    }
+  ]
+}

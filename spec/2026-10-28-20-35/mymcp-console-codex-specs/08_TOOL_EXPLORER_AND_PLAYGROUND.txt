@@ -1,0 +1,70 @@
+PHASE 08 — MCP TOOL EXPLORER AND LIVE PLAYGROUND
+Priority: P0 (Schema form generation is P1)
+
+[1] Tool Explorer
+- `/tools`: 실제 inspect를 통과한 MCP의 `listTools()`로 가져온 tools만 표시.
+- 서버별 group, 문자열 검색, Read-only/May write/Unknown filter.
+- schema `inputSchema`, `outputSchema?`, title/description/annotations 표시.
+- 도구가 없거나 미연결이면 'Inspect this MCP first' 버튼 제공.
+- Tool card에는 `Run in Playground` action과 `Copy Name` 제공.
+- 새 MCP 추가 시 프론트 소스 수정 없이 tools/list 기반으로 자동 검색.
+- Catalog expectedTools는 문서/테스트용일 뿐 Tool Explorer의 실제 source of truth가 아님.
+
+[2] Playground layout
+- 좌측/상단: Server selector, Tool selector, Tool description, annotation Tag.
+- JSON 입력: Monaco JSON editor, schema validation marker, default `{}`.
+- `Run Tool` Button: validate client -> optional write warning -> POST /call.
+- response panel: Status, requestId, durationMs, executedAt, isError, Raw/Structured/Text tabs.
+- `Copy JSON`, `Copy requestId`, `Clear` actions.
+- response는 markdown/HTML을 자동 렌더링하지 말고 기본 escaped text/JSON viewer.
+- `structuredContent` 존재 시 전용 탭 제공, `content` (text/image/resource link 등)
+  타입별 안전한 요약 + raw JSON 제공.
+- 대형 결과는 byte cap/truncated 표시. UI crash/브라우저 메모리 초과 방지.
+- 입력 편집 중 다른 tool 선택 시 사용자 미저장 변경을 잃지 않도록 확인 또는 state 유지.
+
+[3] Schema validation
+- `tools/list`가 제공하는 JSON Schema를 Monaco editor language service / Ajv 2020로 처리.
+- validation messages는 필드 path, 제약 조건을 사용자에게 노출.
+- server-side validation은 필수. client-side validation은 보조 UX.
+- P0는 자유 JSON 입력 지원 및 오류 설명까지, full nested schema->form UI는 P1.
+- value types (string, number, boolean, arrays, nested objects, enums, required, pattern,
+  min/max) 처리. unknown/unsupported schema는 Raw JSON 모드로 계속 사용 가능.
+- malformed JSON은 Run button disabled and editor error.
+
+[4] 안전한 Tool 실행
+- Tool 실제 호출은 클라이언트 브라우저가 아니라 인증된 Console Server가 수행.
+- serverId/toolName는 allowlisted discovered tool만 허용.
+- `annotations.readOnlyHint`가 true여도 서버 정책에서 write 위험이 크면 경고.
+- `dc_import_post`: 로컬 post store 변경, 실제 사용자 확인(확인 모달).
+- 다른 쓰기 가능/미확인 Tool도 confirmation gate. `confirmWrite=true`만 수동 확인 뒤 전달.
+- `dc_search_posts`: Brave 3rd-party index, stale/incomplete/inexact ordering 경고 문구.
+- `dc_get_post` / `dc_get_comments`: manual import 데이터만, NOT_IMPORTED를 정상 안내.
+- `dc_parse_post_url`: 네트워크 없이 검증 가능, 기본 smoke example 추천.
+
+[5] 샘플 입력 (실제 Tool schema 확인 후 제공)
+Example / echo
+{ "message": "hello from mymcp console" }
+
+DCInside / dc_parse_post_url
+{ "url": "https://gall.dcinside.com/board/view/?id=example&no=123" }
+
+DCInside / dc_search_posts  (사용자 직접 실행, Key 없으면 CONFIGURATION_REQUIRED 예상)
+{ "query": "일본 교환학생", "limit": 5 }
+
+DCInside / dc_import_post (테스트 시 disposable data dir만 사용)
+{ "url":"https://gall.dcinside.com/board/view/?id=example&no=123",
+  "title":"synthetic test post", "bodyText":"test data, not live content" }
+
+[6] Future P1 UI
+- JSON Schema 기반 동적 입력 폼 (필드 도움말, required/enum/select, repeatable arrays).
+- Saved inputs with user opt-in, fields mask, no secret autofill.
+- Diff view current vs previous result; unstable fields normalization.
+
+[7] Acceptance Tests
+[ ] 실제 discovered Tool만 실행 가능.
+[ ] echo와 dc_parse_post_url의 content/structured response 확인 가능.
+[ ] Tool `isError:true`는 호출 성공(HTTP)과 구분되는 Tool Error로 표시.
+[ ] `dc_get_post` NOT_IMPORTED를 Tool Error로 잘못 계산하지 않음.
+[ ] `dc_import_post`의 confirmation 없이는 서버 호출 안 됨.
+[ ] 악성 HTML/Script 텍스트는 실행되지 않음.
+[ ] JSON schema 미지원 케이스에서도 raw editor가 동작.

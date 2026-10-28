@@ -1,0 +1,74 @@
+PHASE 03 — MCP STDIO CLIENT, PROCESS LIFECYCLE, HEALTH
+Priority: P0
+
+[1] 프로토콜/SDK
+- `@modelcontextprotocol/sdk@1.32.2`를 사용하여 기존 서버와 버전을 우선 맞춤.
+- `Client` import: `@modelcontextprotocol/sdk/client/index.js`
+- `StdioClientTransport` import: `@modelcontextprotocol/sdk/client/stdio.js`
+- 서버 자체는 `@modelcontextprotocol/sdk/server/stdio.js` 사용 중. 기존 transport 보존.
+- `client.connect(transport)`가 stdio child process launch/initialize 수행; 별도 spawn 중복 금지.
+- `client.listTools()`의 실제 JSON Schema와 tool metadata 사용.
+- `client.callTool({ name, arguments }, ..., requestOptions)` 형태로 실제 요청.
+- ping 지원: `client.ping({ timeout: ... })` 또는 설치된 SDK의 정확한 시그니처에 맞추기.
+- 모든 실제 API 시그니처는 node_modules TypeScript 타입 및 공식 v1 문서로 재확인.
+
+[2] Connection manager 계약
+interface-like operations:
+- listRegistry(): RegistryEntry[]
+- getStatus(id): RuntimeSnapshot
+- inspect(id, { forceRefresh }): Promise<{ status, tools }>
+- getCachedTools(id): ToolDefinition[] | undefined
+- callTool(id, toolName, args, { timeoutMs, requestId }): Promise<MCPCallResult>
+- stopAll(): Promise<void>  // 종료 중 임의 요청을 받아들이지 않음
+- onStatus(listener): unsubscribe; optional SSE is P1, polling P0.
+
+[3] 동시성/재연결
+- 각 MCP id 당 활성 프로세스/Client/Transport 정확히 1개.
+- 동시에 inspect 호출이 여러 개면 in-flight promise 공유. 중복 child launch 금지.
+- 예기치 않은 child 종료 시 stale Client reference 제거, runtimeState=error/disconnected.
+- 외부 요청으로만 재연결 시도(P0); 무제한 백그라운드 재시작 금지.
+- reconnect 실패 시 exponential backoff (1s/2s/4s, max 30s) 및 마지막 오류 기록.
+- per-server tool call 동시 실행 2개, 전체 8개 제한(초기 기본값, 설정 가능).
+- 대기열 상한 20. 초과 시 429 TOO_MANY_REQUESTS.
+- 연결 timeout 10초, tools/list timeout 10초, 호출 기본 timeout 20초, 최대 60초.
+- 강제 취소/timeout 시 실제 SDK 요청이 취소되지 않을 경우 request state와 process recovery 처리.
+- idle process shutdown은 초기 P0에서 불필요하면 생략. 구현한다면 최소 10분 유휴 후 정상 close, 정확히 기록.
+
+[4] 관측 가능한 상태
+- connect + initialize 성공 이후 listTools 성공하면 ready.
+- ping 성공 + listTools cache 유효 -> health OK.
+- Ping 실패 또는 도구 목록 조회 오류 시 degraded/error, 상세 오류 코드는 user-friendly.
+- 실행 파일 dist/index.js 없음 -> BUILD_REQUIRED, not_started/error (없는 척 tool list 허위 생성 금지).
+- registry unsupported/unverified -> NOT_VERIFIED, 실행 차단(수동으로 설정 변경 후 다시 빌드/검증).
+- key 누락은 Server failure가 아닐 수 있음: DCInside는 parse/import/get이 키 없이 동작.
+- health loop는 프로세스를 계속 spawn하지 않아야 함. 연결된 MCP만 30초 주기 체크.
+- console server 자체의 process liveness, HTTP readiness, MCP-specific status를 분리.
+
+[5] stderr 및 stdout
+- child stdout는 MCP SDK 전용. 로그로 원시 JSON-RPC를 전달/노출/저장하지 말 것.
+- stderr만 line-oriented, redaction + truncation 후 로그 화면 표시.
+- 최대 stderr line 4KiB, 최근 per-process ring buffer 200줄(초기값).
+- stderr에 토큰이나 사용자가 입력한 본문이 있을 수 있으므로 로깅 기본값 메타데이터 위주.
+- stdio protocol 오류를 단순 stdout 텍스트 파싱으로 우회하지 말 것.
+
+[6] 종료/재시작 안전성
+- SIGTERM/SIGINT: 신규 API 호출 차단 -> in-flight 일정 시간 grace -> Client.close -> transport/child cleanup.
+- 종료 유예 5초 후 잔여 프로세스 강제 종료(사용 중인 SDK API와 POSIX 지원 확인).
+- Windows 개발 시 OS별 signal 차이를 감안, Node 종료 API 사용.
+- Docker 컨테이너 정지 시 자식 프로세스가 남지 않도록 PID1/`init: true` 검토.
+- 로그/상태는 child exit code, signal, lastCheckedAt 구분.
+
+[7] 결과 해석
+- MCP call 결과 `isError: true`는 정상 도달한 Tool-level failure. 이를 HTTP 200 + status=tool_error로 반환.
+- 프로토콜 실패/연결 실패/timeout은 API error 502/503/504로 반환.
+- `content`, `structuredContent`, optional metadata를 가능한 그대로 보존하되 API 응답 크기 제한과 마스킹 적용.
+- `dc_get_post`가 `found:false, reason:NOT_IMPORTED`를 반환해도 Tool failure가 아닌 정상 결과임.
+
+[8] Test Cases
+[ ] InMemoryTransport를 이용한 echo tools/list/call unit+integration.
+[ ] 실제 StdioClientTransport + node dist/index.js로 echo end-to-end.
+[ ] DCInside five-tool discovery and `dc_parse_post_url` success without BRAVE key.
+[ ] 같은 server로 inspect 20개 동시 호출해도 child 1개.
+[ ] stdout이 로그나 프론트 응답에 원시로 노출되지 않음.
+[ ] disconnect/timeout/build missing/incompatible handshake/unknown tool 처리.
+[ ] container shutdown 후 zombie MCP child 없음.

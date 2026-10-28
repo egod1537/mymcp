@@ -1,0 +1,69 @@
+# 04 / MCP Tool 계약 (기존 호환 + 신규)
+
+[기본 원칙]
+- MCP SDK v1.32.2의 registerTool 사용.
+- 기존 Tool names 및 legacy input은 무조건 유지.
+- 성공은 content:[{type:'text',text:JSON.stringify(payload)}] + structuredContent:payload.
+- 처리 오류는 기존 형식 {code,message,retryable?}, isError=true; 미존재는 정상 데이터(found:false).
+- Tool description과 annotations에 실제 데이터 소스/권한을 명기.
+- JSON Schema input object가 Tool Explorer/Blueprint Playground에서 자동 폼 렌더 가능하도록 제한/기본값 작성.
+
+[유지 및 확장]
+1. dc_search_posts
+  기존: {query:string, galleryId?:string, galleryType?:major|minor|mini, freshness?:any|day|week|month|year, limit?:1..20}
+  추가 optional: sort?:'relevance'|'latest', source?:'brave'|'local', keywords?:string[]; maxPages?:1..3 (Brave API pagination only).
+  legacy 응답의 query,provider,source,count,coverageNote,results 유지.
+  추가: results[i].matchedKeywords?:string[], normalized provenance; queryPlan, totalFetched, truncated, lastUpdatedAt? (근거 있을 때만).
+  sort='latest'은 게시글 번호 DESC를 시간 근사치로만 사용하며 '정확한 작성일 최신순'으로 표시하지 말 것.
+
+2. dc_parse_post_url
+  그대로 유지. major/minor/mini canonical URL 검증 로직 재사용.
+
+3. dc_import_post
+  그대로 유지. source='user_import' 저장, 기존 250KiB 제한 및 v1 파일 호환.
+  신규 metadata를 optional로 추가해도 기존 import가 깨지지 않도록.
+
+4. dc_get_post
+  기존: {url:string}
+  추가 optional: sourceMode?:'local'|'authorized'; preferImages?:boolean.
+  기존 local 반환 구조와 source 유지. 신규 remote 반환 시 source='authorized_direct', fetchedAt, contentAvailable, partial 표기.
+  remote disabled + sourceMode authorized = 명시적 REMOTE_DISABLED 오류, 임의 Brave snippet을 본문으로 사용 금지.
+
+5. dc_get_comments
+  기존: {url:string, offset?:number, limit?:number}
+  추가 optional: sourceMode?:'local'|'authorized'.
+  기존 comments 배열/total/offset/limit 유지. 새 metadata: loadedCount, partial, nextOffset?, source, fetchedAt?; 댓글 원본이 일부만 있을 때 전체 댓글이 있다고 거짓 표시 X.
+
+[신규 P0]
+6. dc_list_gallery_posts
+  input: {galleryId:string, galleryType?:'major'|'minor'|'mini', page?:1..100, boardType?:'all'|'recommend'|'notice', limit?:1..50, sourceMode?:'local'|'authorized'}
+  output: {galleryId,page,boardType,source,sourceMode,items:[{postNo,canonicalUrl,title,dateLabel?,commentCount?,views?,recommends?}],count,partial,provenance}
+  사용자의 CSV import가 없고 remote disabled면 SOURCE_UNAVAILABLE 또는 빈 목록인 경우 EMPTY_LOCAL_INDEX 구별.
+
+7. dc_get_post_with_comments
+  input: {url:string, offset?:0..10000, limit?:1..100, sourceMode?:'local'|'authorized'}
+  output: {found:boolean, canonicalUrl,source, post?, comments:{total?,loadedCount,items,offset,limit,partial}, fetchedAt?/importedAt?}
+  구현은 getPost/getComments 서비스 공통 read snapshot을 재사용. remote 요청을 post와 comments로 중복 발사하지 말 것.
+
+8. dc_import_search_results
+  input: {format:'csv'|'json', data:string, galleryId?:string, replace?:boolean}
+  CSV/JSON text base64가 아니라 UTF-8 string이 기본. 파일 경로 임의 입력 허용 금지.
+  output: {status:'imported',source:'deep_search_export'|'user_import',accepted,duplicates,rejected,diagnostics,importedAt}
+  최대 CSV/JSON 크기 1MiB, 최대 1000행 등 적절한 상한. 유효하지 않은 행은 오류/사유 보고, 원본 data echo 금지.
+
+9. dc_import_post_html (선택적 P1, 보관권한 검토)
+  input: {url:string, html:string, note?:string}
+  사용자가 제공한 현재 열린 한 페이지 HTML만 로컬 파싱; 서버가 URL을 fetch하지 않음.
+  output: {status:'saved',source:'user_import',canonicalUrl,bodyLength,commentCount,importedAt,parserVersion}
+  HTML이 변화하여 정보가 부족하면 PARSE_FAILED, 기존 저장글 덮어쓰기 금지.
+
+[예시 호출]
+dc_search_posts({"query":"공항","galleryId":"japan","galleryType":"minor","limit":10,"source":"brave"})
+dc_get_post({"url":"https://gall.dcinside.com/mgallery/board/view/?id=japan&no=123","sourceMode":"local"})
+dc_get_comments({"url":"https://gall.dcinside.com/mgallery/board/view/?id=japan&no=123","offset":0,"limit":30})
+dc_list_gallery_posts({"galleryId":"japan","page":1,"sourceMode":"local"})
+
+[주의]
+- 기존 field를 optional 제거/rename하지 말 것; 추가 field만.
+- remote enabled 여부를 user/provider가 조작 가능한 tool 인자로 변조해 권한 우회하지 못하게 server config에서 강제.
+- Tool annotations은 실제 동작을 반영. 로컬 import는 쓰기 수행하므로 readOnlyHint=false.

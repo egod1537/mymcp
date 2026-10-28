@@ -2,10 +2,10 @@
 
 ## Workspace boundaries
 
-`pnpm-workspace.yaml` discovers only `apps/*` and `packages/*`. Each directory with a
+`pnpm-workspace.yaml` discovers `apps/*`, `mcps/*`, and `packages/*`. Each directory with a
 `package.json` is an independently versioned package with its own build, test, and typecheck
-scripts. The old `mcps/*` tree is intentionally outside workspace discovery until each project is
-deliberately migrated in a later phase.
+scripts. Workspace discovery only means that pnpm can run the package scripts; it does not mean a
+server is trusted, production-ready, or enabled in the Console registry.
 
 Applications may depend on packages, but packages must not depend on applications. Internal
 dependencies use `workspace:*` so an accidental registry package cannot replace local code.
@@ -42,3 +42,14 @@ design; it is not enabled in phase 1.
 - A breaking change in one MCP increments that package only; shared-package breaking changes must
   be coordinated with every consuming app.
 - Publishing is opt-in per package. The root package is permanently private.
+
+## Console boundary
+
+The Console is an operator application, not a general-purpose process launcher. Its backend may
+start only entries from the version-controlled `config/mcp-registry.json` allowlist. Browser code
+uses `@mymcp/console-contracts` and never imports the Node-only `@mymcp/mcp-client` package.
+
+Existing MCP public tool names, descriptions, input schemas, transport behavior, and persistent
+formats are outside the Console's ownership. The Console adapts to those contracts and records
+observations; it does not rewrite them. See
+[Console integration boundaries](console/integration-boundaries.md) for the detailed policy.

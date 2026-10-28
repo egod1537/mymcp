@@ -1,0 +1,61 @@
+PHASE 07 — OVERVIEW DASHBOARD, MCP SERVER DETAIL, STATUS UX
+Priority: P0
+
+[1] Overview page
+- Metric cards: Registered MCPs, Ready MCPs, Unverified MCPs, Tools Discovered,
+  Calls in Selected Range, Tool Success Rate, Average/median Tool Latency.
+- metric 수치는 실제 registry/runtime/log에서 계산; 빈/미측정 항목은 '--'.
+- status summary chart는 필요 시 Blueprint Tag + simple bar; 가상 수치 금지.
+- Main MCP Table/List: Name, Catalog State, Runtime, Tools, Last Health Check, Last Error.
+- Rows clickable to `/servers/:id`, server registry source 명시.
+- API query auto refetch (e.g. 15s), 탭 비활성/브라우저 hidden 시 폴링 절제.
+- 이 화면의 메트릭 실패 시 전체 UI crash 대신 해당 카드 error/partial stale 표시.
+
+[2] MCP Servers page
+- name/type/capability/status 검색/필터.
+- example + dcinside 기본 우선 정렬, unverified 별도 표기.
+- 각 server는 상세 설명, 버전(확인된 경우만), transport, configured keys presence,
+  lastConnectedAt, lastCheckedAt, tool count, requested permissions.
+- 'Inspect' action: 실제 MCP connect+tools/list 수행, 성공/실패 후 상태 갱신.
+- unverified는 Inspect disabled + 'Validate and enable through registry' 설명.
+- 키가 누락되어도 부분 도구 사용 가능한 MCP는 `Ready` + `search key missing` 경고.
+
+[3] Server detail
+- Overview: metadata + runtime health + connection last checked + error detail.
+- Tools Tab: 실제 tools/list 결과, schemas/annotations, Playground로 이동.
+- Diagnostics Tab: bounded/redacted stderr ring buffer, last exit code, startup errors.
+- Configuration Tab: `BRAVE_SEARCH_API_KEY: Configured/Missing` 등 presence만.
+- (P1 optional) Resources, Prompts Tab: 지원 capability가 있을 때만 활성.
+- `Copy Tool Name`, `Copy Server ID` 같은 개발자 편의 기능 지원.
+- raw env, command injection, .env 편집, Docker socket 버튼 없음.
+
+[4] Status semantics example
+- example: registry=supported, runtime=not_started => 'Not started', not 'Down'.
+- example after inspect handshake/listTools => runtime=ready.
+- dcinside without Brave key after inspect => runtime=ready, credentialState=missing for search,
+  warning: Search requires BRAVE_SEARCH_API_KEY. Other local tools usable.
+- google-routes and japanese-vocab: registry=unverified => 'Unverified', not 'Healthy'.
+- crash after inspect => runtime=error + PROCESS_EXITED and hint to read diagnostics.
+
+[5] 기본 정보 설계
+- Status summary가 catalog status와 runtime status를 혼동하지 않도록 2개 Tag 또는
+  clear subline로 표현.
+- `lastCheckedAt` 없으면 '-' 또는 'Never', 0ms/0 tools로 위장 금지.
+- uptime은 실제 connectedSince 기준 (시스템 uptime 아님).
+- 실행 회수/평균 latency는 synthetic health-check 요청 제외.
+
+[6] E2E Journey
+1. 소유자 로그인 -> Overview.
+2. Example row는 Not started.
+3. Example Inspect -> Ready, 1 Tool 표시.
+4. Example Tools -> echo 클릭 -> Playground 화면 전환.
+5. DCInside row -> Inspect -> 5 Tool 확인.
+6. DCInside `dc_search_posts` 클릭하면 검색 인덱스 출처 안내 및 key presence 경고.
+7. 미검증 MCP는 disabled Inspect 상태와 안전한 다음 단계 안내.
+
+[7] Acceptance Tests
+[ ] API registry 새 항목 추가 시 프론트 하드코딩 없이 서버 행 생성.
+[ ] latency/통계는 실제 call event만 반영.
+[ ] 소유자 로그인 전에는 서버 이름/환경 키 구성까지 노출되지 않음.
+[ ] 상태 polling 시 MCP child가 무한 생성되지 않음.
+[ ] Disabled/Unverified/Not Started/Ready/Error 구분 정확.

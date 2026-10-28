@@ -13,21 +13,29 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
+    "deploy": "wrangler deploy",
     "dev": "tsx watch src/index.ts",
+    "dev:worker": "wrangler dev",
     "lint": "eslint src tests",
     "start": "node dist/index.js",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json"
   },
   "dependencies": {
+    "@gurumnyang/dcinside.js": "1.15.2",
     "@modelcontextprotocol/sdk": "1.32.2",
+    "@modelcontextprotocol/server": "2.3.1",
+    "agents": "0.31.0",
+    "cheerio": "1.2.0",
     "dotenv": "18.0.9",
     "zod": "4.6.7"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "5.20261028.1",
     "@types/node": "22.20.5",
     "tsx": "4.23.15",
     "typescript": "6.0.3",
-    "vitest": "5.0.5"
+    "vitest": "5.0.5",
+    "wrangler": "4.154.0"
   }
 }

@@ -1,0 +1,70 @@
+PHASE 01 — EXISTING REPO AUDIT, NON-DESTRUCTIVE INTEGRATION
+Priority: P0, prerequisite for all phases
+
+[1] 현재 저장소 확인 사항 (main SHA 0478bd7 기준)
+- `package.json`: @mymcp/root, pnpm@12.9.1, Node >=22, scripts: build/test/typecheck/lint/format.
+- `pnpm-workspace.yaml`: apps/*, mcps/*, packages/* (실제 설정).
+- `apps/example/`: SDK v1 stdio 예제, `echo` tool. 빌드 결과 dist/index.js.
+- `mcps/dcinside/`: 독립 패키지, `dc_search_posts`, `dc_parse_post_url`,
+  `dc_import_post`, `dc_get_post`, `dc_get_comments` 5개 Tool.
+- `mcps/dcinside/src/index.ts`: StdioServerTransport, dotenv, stderr 로그.
+- `mcps/dcinside/src/server.ts`: registerTool 다섯 개 등록.
+- `mcps/dcinside/.env.example`: BRAVE_SEARCH_API_KEY, DCINSIDE_DATA_DIR 등.
+- `mcps/google-routes/package.json`, `mcps/japanese-vocab/package.json`은 존재.
+- `docs/mcp-catalog.md`: example/dcinside = implemented, google-routes/japanese-vocab = not validated.
+- `README.md`: dcinside를 구버전의 planned 상태로 표시하는 문구 존재.
+- `docs/architecture.md`: mcps/*가 workspace 밖이라고 구버전 설명, 실제 YAML과 불일치.
+- `eslint.config.mjs`: 일부 레거시 mcps 폴더를 lint에서 제외.
+- `.github/workflows/ci.yml`: Node22/pnpm12.9.1, root format/lint/typecheck/test/build.
+- mcps/jlpt/package.json은 확인되지 않았으니 지원 대상으로 임의 등록하지 말 것.
+
+[2] 코드 착수 직전 조사 절차
+A. `git status --short`, `git branch --show-current`, `git rev-parse HEAD`, `git log -5 --oneline`.
+B. `pnpm install --frozen-lockfile` (lockfile이 실제 현황과 다른 경우 원인 분석 후 변경).
+C. 기존 `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build` 실행.
+D. 실패 항목은 /docs/console/baseline.md에 기존 실패와 새 구현 유발 실패를 구분해 기록.
+E. 패키지 매니저, lockfile, tsconfig, ESLint, Vite/React 추가 가능성 검토.
+F. MCP별 실제 dist 엔트리포인트와 환경 설정, 테스트 실행 여부 확인.
+G. `README.md`, `docs/architecture.md`, `docs/mcp-catalog.md`의 상호 불일치 정정.
+H. 기존 변경 파일이 사용자 작업인 경우 덮어쓰지 않고 해당 변경을 유지할 것.
+
+[3] 통합 원칙
+- 기존 `apps/example/`, `mcps/dcinside/`의 public tool schema, transport, 저장 포맷을 무단 수정하지 않음.
+- 기존 `mcps/google-routes/`, `mcps/japanese-vocab/`는 코드 존재와 실행 검증을 구분.
+- 두 레거시 서버는 `planned` 혹은 `unverified`로 레지스트리에 나타내되, 기본 자동 실행 금지.
+- 나중에 개별 package가 build + handshake + tool call 검증을 통과하면 supported로 전환.
+- pnpm workspace에 이미 `mcps/*`가 포함되어 있으므로 중복 package discovery를 추가하지 않음.
+- root scripts가 레거시 때문에 실패한다면 원인과 영향을 분석하여 최소 수정. 다른 패키지 테스트를 단순 삭제하거나 전부 제외하지 말 것.
+- 콘솔과 MCP 서버는 독립 배포/실행 가능해야 하며, 콘솔만 빌드해도 모든 기존 MCP가 의도치 않게 변경되지 않도록 스크립트 필터 구성.
+
+[4] 새 패키지와 네이밍
+- `apps/console-server` => `@mymcp/console-server` (private, ESM)
+- `apps/console-web` => `@mymcp/console-web` (private, Vite SPA)
+- `packages/mcp-client` => `@mymcp/mcp-client` (Node-only)
+- `packages/console-contracts` => `@mymcp/console-contracts` (browser-safe DTOs/Zod)
+- Backend는 `packages/config/tsconfig.base.json` 기반 NodeNext, 상대 import .js.
+- Frontend는 Vite에 맞는 tsconfig (bundler JSX) 사용. Node-only 패키지를 브라우저 번들로 가져오지 말 것.
+- Frontend/App은 기존 ESLint 설정에 TSX, DOM global, React Hooks 규칙이 제대로 잡히도록 별도 override.
+- pnpm lock 갱신은 패키지 변경과 동기화. `frozen-lockfile` CI 통과.
+
+[5] 원천자료 확인
+아래 파일을 실제로 읽고 구현 근거로 사용할 것:
+`README.md`, `package.json`, `pnpm-workspace.yaml`, `docs/mcp-catalog.md`,
+`docs/development.md`, `docs/architecture.md`, `.github/workflows/ci.yml`,
+`apps/example/src/{index,server}.ts`, `mcps/dcinside/src/{index,server}.ts`,
+`mcps/dcinside/README.md`, `mcps/dcinside/tests/tools.test.ts`,
+`mcps/google-routes/package.json`, `mcps/japanese-vocab/package.json`.
+
+[6] 세부 산출물
+- `docs/console/baseline.md`: commit SHA, 실제 확인 결과, 패키지별 build/test 상태 표.
+- `docs/console/integration-boundaries.md`: 기존 MCP와 새 콘솔 사이의 변동 허용 범위.
+- 루트 README에 Console quickstart 링크.
+- docs/mcp-catalog.md에 Console 관점의 verified, unverified 개념과 등록 규칙 추가.
+
+[7] Acceptance Tests
+[ ] 기존 MCP의 다섯 DCInside tool 이름과 description/schema가 그대로 유지됨.
+[ ] `@mymcp/example` echo 정상.
+[ ] 기존 stdio stdout에 디버그 로그가 섞이지 않음.
+[ ] 상태 문서가 실제 코드/워크스페이스와 일치.
+[ ] 새 웹앱 때문에 기존 패키지의 `typecheck/test/build`가 깨지지 않음.
+[ ] Git 변경 사항 중 비밀키나 개인 데이터 파일이 없음.

@@ -1,0 +1,100 @@
+PHASE 02 — SYSTEM ARCHITECTURE, MCP REGISTRY, DEPENDENCY BOUNDARIES
+Priority: P0
+
+[1] 실행 구성
+Browser (React + Blueprint)
+  -> same-origin HTTPS/local HTTP -> Fastify Console Server
+  -> registry + auth + SQLite + MCP connection manager
+  -> @mymcp/mcp-client (Client + StdioClientTransport)
+  -> `node /app/apps/example/dist/index.js` or `node /app/mcps/dcinside/dist/index.js`
+  -> stdio JSON-RPC MCP (NO scraping proxy, NO shell commands submitted by browser)
+
+- 개발: pnpm 기반 Vite dev 서버 -> /api는 Fastify로 proxy. 각 서버 TypeScript watch.
+- 운영: web 정적 빌드를 Fastify가 동일 origin에서 제공하는 단일 Docker image/컨테이너.
+- 기존 MCP 자체는 독립 실행 가능. Console 없이도 기존 MCP client에서 구동돼야 함.
+- `packages/mcp-client`는 브라우저 코드에서 import 불가. `packages/console-contracts`에는 Node API 불가.
+
+[2] Server registry — config/mcp-registry.json
+목적: 사용자 승인된 MCP만 실행, 서버 표시 메타데이터와 연결 가능 여부 구분.
+- 정적 서버 설정 파일. Console UI에서 command/args/path/URL 변경 불가(P0).
+- JSON을 앱 시작 시 Zod로 엄격 검증, 중복 id, 빈 id, 잘못된 경로는 명시적 오류.
+- 추천 레코드 모델:
+  id: string (^[a-z0-9-]+$)
+  displayName: string
+  description: string
+  catalogState: 'supported' | 'unverified' | 'disabled'
+  transport: 'stdio' (P0 only)
+  command: 'node' (trusted hard-coded allowlist)
+  args: [repository-relative dist/index.js path]
+  cwd: repository-relative directory
+  requiredBuildPackage: string (name only)
+  permittedEnvironmentKeys: string[]
+  expectedTools?: string[] (informational, not fabricated discovery)
+  supportsWriteTools?: boolean
+  launchByDefault: boolean (false recommended)
+- 접근 권한 확인: path.resolve -> realpath -> repository runtime root 내부인지 확인.
+- registry 스키마가 임의 shell expansion, semicolon, arbitrary execute path를 허용하지 않도록 검증.
+- credentials/secret values는 registry 절대 포함 금지.
+
+[3] 초기 registry 항목
+- `example`: supported, `apps/example/dist/index.js`, cwd `apps/example`, tool `echo`.
+- `dcinside`: supported, `mcps/dcinside/dist/index.js`, cwd `mcps/dcinside`,
+  permitted env: BRAVE_SEARCH_API_KEY, DCINSIDE_DATA_DIR,
+  DCINSIDE_SEARCH_TIMEOUT_MS, DCINSIDE_MAX_SEARCHES_PER_MINUTE,
+  tools: dc_search_posts, dc_parse_post_url, dc_import_post, dc_get_post, dc_get_comments.
+- `google-routes`: unverified, 코드가 존재하지만 기본 auto-connect 금지, 검증을 통과한 뒤 supported로 수동 승격.
+- `japanese-vocab`: unverified, 같은 정책.
+- 임의로 `jlpt` 항목을 만들지 말 것: 패키지 확인되지 않음.
+
+[4] 상태 모델 (모두 별도 필드로 보유)
+A. catalogState: supported | unverified | disabled  (정적 등록/신뢰 수준)
+B. runtimeState: not_started | connecting | ready | degraded | disconnected | error
+C. credentialState: not_required | configured | missing | unknown
+D. health: unknown | ok | warning | failing; lastCheckedAt, lastErrorCode, uptimeSince
+- READY = connect/initialize 성공 + 최소 1회 tools/list 성공.
+- Process alive만으로 READY/Healthy 판정 금지.
+- Brave Key가 없어도 DCInside parse/import/local-get은 정상 작동 가능함.
+  DCInside 전체를 미설정/Down으로 표시하지 말고 Tool별 capability 경고를 표기.
+- unverified는 시스템 다운과 구분하여 별도 배지로 표현.
+
+[5] 디렉터리 권장 구조
+apps/console-server/
+  src/index.ts                entrypoint + lifecycle
+  src/app.ts                  Fastify composition
+  src/routes/auth.ts          authentication
+  src/routes/servers.ts       registry/status/inspection
+  src/routes/tools.ts         dynamic Tool invocation
+  src/routes/events.ts        log pagination/metrics
+  src/auth/                   sessions/csrf/password
+  src/mcp/                    registry, manager integration
+  src/observability/          SQLite schema, retention, aggregations
+  src/security/               sanitizers, quotas, origin checks
+  test/                       API+security integration tests
+apps/console-web/
+  src/app/                    routes, shell, query client
+  src/components/             shared Blueprint components
+  src/features/overview/
+  src/features/servers/
+  src/features/tools/
+  src/features/playground/
+  src/features/logs/
+  src/features/settings/
+  src/styles/                 spacing/layout only, Blueprint overrides minimized
+packages/mcp-client/
+  src/registry.ts, src/connection-manager.ts, src/types.ts
+packages/console-contracts/
+  src/api.ts, src/registry.ts, src/errors.ts
+config/mcp-registry.json
+
+[6] 버전 정책
+- 이 단계에서는 저장소 서버가 이미 사용하는 SDK v1 (`@modelcontextprotocol/sdk@1.32.2`)로 Client 구현.
+- 2026-10 현재 MCP SDK v2가 별도 client/server 패키지로 존재하더라도 이번 작업에서 MCP 전 서버를 무작정 이행하지 않음.
+- v2 전환은 어댑터 인터페이스를 유지한 채 별도 검증 프로젝트로 계획.
+- @blueprintjs/core는 v6 계열로 통일하고 React 호환 peer deps를 lockfile 기준으로 확정.
+
+[7] Acceptance Tests
+[ ] 앱 시작 시 registry 검증 실패가 올바른 에러로 노출.
+[ ] 등록되지 않은 id로 MCP를 실행할 수 없음.
+[ ] `unverified` MCP를 실제로 검사하지 않고 Running/Ready라 표시하지 않음.
+[ ] 개별 MCP 클라이언트가 Console 외부에서도 동일하게 실행 가능.
+[ ] 브라우저 자바스크립트 bundle에 node:child_process, MCP SDK Server, env secret 없음.

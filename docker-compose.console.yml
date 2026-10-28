@@ -1,0 +1,58 @@
+services:
+  mymcp-console:
+    build:
+      context: .
+      dockerfile: Dockerfile.console
+    image: mymcp-console:local
+    init: true
+    restart: unless-stopped
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 128
+    ports:
+      - '127.0.0.1:${CONSOLE_HOST_PORT:-4173}:${CONSOLE_PORT:-4173}'
+    environment:
+      NODE_ENV: production
+      CONSOLE_HOST: 0.0.0.0
+      CONSOLE_PORT: ${CONSOLE_PORT:-4173}
+      CONSOLE_ALLOWED_ORIGIN: ${CONSOLE_ALLOWED_ORIGIN:-http://127.0.0.1:4173}
+      CONSOLE_SECURE_COOKIES: ${CONSOLE_SECURE_COOKIES:-false}
+      CONSOLE_AUTH_MODE: ${CONSOLE_AUTH_MODE:-password}
+      CONSOLE_CONTAINER_LOOPBACK_ONLY: 'true'
+      CONSOLE_DATA_DIR: /data
+      CONSOLE_RUNTIME_ROOT: /app
+      CONSOLE_REGISTRY_PATH: config/mcp-registry.json
+      CONSOLE_WEB_ROOT: /app/apps/console-web/dist
+      CONSOLE_ADMIN_PASSWORD_HASH: ${CONSOLE_ADMIN_PASSWORD_HASH:-}
+      DCINSIDE_DATA_DIR: /data/dcinside
+      BRAVE_SEARCH_API_KEY: ${BRAVE_SEARCH_API_KEY:-}
+      DCINSIDE_REMOTE_MODE: ${DCINSIDE_REMOTE_MODE:-disabled}
+      DCINSIDE_MAX_IMPORTED_ROWS: ${DCINSIDE_MAX_IMPORTED_ROWS:-1000}
+      DCINSIDE_MAX_IMPORT_BYTES: ${DCINSIDE_MAX_IMPORT_BYTES:-1048576}
+      DCINSIDE_MAX_SEARCH_PROVIDER_PAGES: ${DCINSIDE_MAX_SEARCH_PROVIDER_PAGES:-2}
+      DCINSIDE_ALLOWED_GALLERIES: ${DCINSIDE_ALLOWED_GALLERIES:-}
+      DCINSIDE_REMOTE_RATE_LIMIT_PER_MINUTE: ${DCINSIDE_REMOTE_RATE_LIMIT_PER_MINUTE:-}
+    volumes:
+      - console_data:/data
+      - dcinside_data:/data/dcinside
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:'+(process.env.CONSOLE_PORT||4173)+'/api/healthz').then(r=>{if(!r.ok)process.exit(1)})",
+        ]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
+
+volumes:
+  console_data:
+  dcinside_data:

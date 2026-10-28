@@ -13,6 +13,8 @@ export interface IndexedPostHit {
 
 export interface IndexedPostSearch {
   results: IndexedPostHit[];
+  totalFetched?: number;
+  reason?: string;
 }
 
 export interface SearchProvider {

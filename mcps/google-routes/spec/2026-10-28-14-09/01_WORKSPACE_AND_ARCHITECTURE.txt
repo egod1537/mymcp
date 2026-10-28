@@ -1,0 +1,87 @@
+01 - WORKSPACE AND ARCHITECTURE
+
+P0 GENERAL RULES
+- Preserve existing root package.json, workspace layout, scripts, and shared packages.
+- Build this app at apps/google-maps, not apps/google-routes.
+- If existing shared/config packages are usable, reuse them; never depend on unimplemented packages.
+- If the repository is empty, initialize the smallest working monorepo, without creating
+  fake empty app directories for dcinside or japanese-vocab.
+- No premature orchestration tools like Turborepo or Nx in this phase.
+- Follow Node's ESM conventions consistently; avoid mixing ESM and CommonJS.
+
+SUGGESTED TARGET TREE (adapt to existing project):
+  package.json
+  pnpm-workspace.yaml
+  pnpm-lock.yaml
+  .gitignore
+  tsconfig.base.json
+  .github/workflows/ci.yml
+  apps/google-maps/
+    package.json
+    tsconfig.json
+    .env.example
+    README.md
+    src/index.ts
+    src/server.ts
+    src/config.ts
+    src/tools/resolve-location.ts
+    src/tools/get-route.ts
+    src/schemas/location.ts
+    src/schemas/route.ts
+    src/clients/google-http.ts
+    src/clients/places.ts
+    src/clients/geocoding.ts
+    src/clients/routes.ts
+    src/lib/errors.ts
+    src/lib/duration.ts
+    src/lib/logger.ts
+    src/lib/normalization.ts
+    tests/fixtures/
+    tests/resolve-location.test.ts
+    tests/get-route.test.ts
+    tests/google-http.test.ts
+    tests/mcp-server.test.ts
+  docs/ [only if needed]
+
+ROOT WORKSPACE
+- pnpm-workspace.yaml includes 'apps/*' and optionally 'packages/*'.
+- Root scripts: build, lint, typecheck, test; scoped forwarding is fine.
+- Use corepack to select a tested pnpm major release; record packageManager in root.
+- Pin dependency versions using pnpm-lock.yaml and document Node/pnpm versions.
+- Keep a single source of truth for TypeScript strict compiler settings.
+
+APP PACKAGE
+- Clear name such as '@egod1537/google-maps-mcp' (private workspace package for v1).
+- Provide 'build', 'start', 'dev', 'lint', 'typecheck', 'test' scripts.
+- 'start' runs the compiled dist/index.js via Node; 'dev' may use tsx.
+- Ensure executable works regardless of working directory (except env loading convention).
+- Do not accidentally load .env in CI or commit real secrets.
+- The MCP SDK's actual installed API signature is authoritative. Use McpServer,
+  StdioServerTransport and supported tool registration for the installed version.
+- Do not invent unstable MCP SDK methods; verify the package exports/types.
+
+STDIO CONTRACT
+- One process owns a single stdio-based MCP server.
+- stdout is reserved EXCLUSIVELY for MCP protocol JSON-RPC traffic.
+- All diagnostics go to stderr; do not use console.log anywhere in server startup.
+- No startup banners or stack traces on stdout.
+- Fail fast with a nonzero process exit when GOOGLE_MAPS_API_KEY is missing
+  and the server is started for live use; provide a helpful stderr message.
+- Keep application startup and tool registration separate so tests can instantiate
+  the server without the live API key.
+
+DEPENDENCY INJECTION
+- Define a small GoogleHttpClient interface used by all Google API clients.
+- Inject fetch, clock/time source, and configuration where they improve testing.
+- Tool handlers depend on interfaces rather than global fetch directly.
+- No external network traffic during module import.
+
+PUBLIC API SURFACE
+- Expose exactly 2 tools: resolve_location and get_route.
+- Return JSON-serialized structured results in MCP text content for broad client support.
+- Optionally provide structuredContent only if supported by the installed SDK;
+  never depend on it exclusively.
+- Tool descriptions must instruct AI clients to call resolve_location first for
+  unstructured place names; use returned Place ID in get_route.
+
+Read next: 02_RESOLVE_LOCATION.txt

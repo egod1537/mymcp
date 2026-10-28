@@ -1,0 +1,105 @@
+PHASE 04 — FASTIFY API, CONTRACTS, VALIDATION
+Priority: P0
+
+[1] 구성
+- Fastify + TypeScript. `packages/console-contracts`의 Zod DTO를 프론트/백엔드에 공유.
+- API version prefix `/api` (초기 P0). full REST versioning 대신 contract version field `apiVersion:1`.
+- SPA와 API 동일 origin. 개발 Vite proxy only; prod CORS 광범위 허용 금지.
+- 모든 route의 request/response/params에 명시적 JSON Schema/Zod 검증.
+- `GET /api/healthz`는 익명 요청 허용하되 boolean alive 수준의 최소 정보만 반환.
+- 나머지 route는 인증 필수(로그인/session 제외). 모든 mutation route는 CSRF/Origin 검증.
+
+[2] P0 endpoints
+Auth
+- POST `/api/auth/login`: {password:string} -> session cookie + {authenticated:true,csrfToken:string}
+- GET  `/api/auth/session`: -> {authenticated:boolean, csrfToken?:string}
+- POST `/api/auth/logout`: cookie/session invalidation.
+
+Registry & inspect
+- GET  `/api/servers`: [{id,displayName,description,catalogState,runtimeState,credentialState,health,toolCount?,lastCheckedAt?,lastErrorCode?}]
+- GET  `/api/servers/:serverId`: allowed registry metadata, runtime diagnostics, configured keys' presence only.
+- POST `/api/servers/:serverId/inspect`: {forceRefresh?:boolean} -> {status,serverInfo?,tools,checkedAt}; supported only.
+- GET  `/api/servers/:serverId/tools`: cached discovered tools; if not inspected -> 409 NOT_INSPECTED (GET shall not spawn process).
+- GET  `/api/servers/:serverId/tools/:toolName`: cached definition with `name,description,inputSchema,outputSchema?,annotations?`.
+
+Call
+- POST `/api/servers/:serverId/tools/:toolName/call`:
+  request: { arguments: Record<string,unknown>, timeoutMs?: number, confirmWrite?:boolean }
+  response (HTTP 200 when MCP replied): {
+    requestId: string,
+    serverId: string,
+    toolName: string,
+    outcome: 'success'|'tool_error',
+    isError: boolean,
+    durationMs: number,
+    content: MCP content blocks (safe bounded subset, preserve type semantics),
+    structuredContent?: unknown,
+    truncated?:boolean,
+    executedAt: ISO UTC string
+  }
+  - tool name must exist in actual fetched tools/list; never trust only URL path.
+  - request arguments must satisfy discovered `inputSchema`; validate with AJV JSON Schema 2020-12 compatible implementation.
+  - tool-level errors stay HTTP 200 with isError=true, protocol/transport failures are HTTP errors.
+  - `confirmWrite` required for known state-changing tools; warning alone not a security boundary.
+
+Logs & metrics
+- GET `/api/events?serverId=&toolName=&outcome=&from=&to=&cursor=&limit=`
+- GET `/api/metrics?range=24h|7d|30d&serverId=`
+- GET `/api/healthz` must NOT include lists of secrets/registered plugins.
+
+[3] Common API error
+{
+  "error": {
+    "code": "NOT_INSPECTED",
+    "message": "Inspect this MCP server first.",
+    "requestId": "...",
+    "retryable": false,
+    "details": {}   // optional whitelisted safe validation details only
+  }
+}
+- 400 VALIDATION_FAILED/INVALID_ARGUMENTS
+- 401 UNAUTHENTICATED
+- 403 FORBIDDEN/CSRF_REQUIRED/WRITE_CONFIRMATION_REQUIRED
+- 404 SERVER_NOT_FOUND/TOOL_NOT_FOUND
+- 409 NOT_INSPECTED/NOT_SUPPORTED/ALREADY_BUSY
+- 429 TOO_MANY_REQUESTS
+- 502 MCP_PROTOCOL_ERROR / PROCESS_EXITED
+- 503 MCP_CONNECT_FAILED / BUILD_REQUIRED
+- 504 MCP_TIMEOUT
+- 500 INTERNAL_ERROR (no stack trace in response)
+- UI는 `isError:true`과 HTTP error를 별개 경고 배지로 표시.
+
+[4] Boundary & HTTP behavior
+- HTTP body 기본 1MiB, Tool argument 256KiB 제한(DCInside 기존 import limit보다 클 수 있으므로 서버 자체 검증도 유지).
+- MCP result 반환 최대 2MiB, 초과 시 안전하게 truncate 또는 명시적 RESULT_TOO_LARGE; JSON 유효성 보존.
+- content text/html은 코드/문자열로 안전하게 보여주며 브라우저 DOM에 직접 삽입 금지.
+- URL query에 인증정보, API key, Tool argument, 사용자 본문 기입 금지.
+- `requestId` 생성, 요청/응답/서버 이벤트 correlate. 서비스 에러 stack trace는 서버에서만 redacted 로그.
+- GET endpoints cache `no-store` for auth/session, live status. ETag 선택사항.
+- 서버 목록/Tool 호출은 전체 응답의 안정된 DTO 타입으로 프론트와 백엔드 공유.
+
+[5] P1 endpoints (P0 완료 후)
+- GET/POST/PATCH/DELETE `/api/test-cases` + `/:caseId`
+- POST `/api/test-cases/:caseId/run` -> run id and assertions
+- GET `/api/test-runs?cursor=` and GET `/api/test-runs/:id`
+- Optional GET `/api/servers/:id/resources`, `/prompts` only if server declares capabilities.
+
+[6] Example interaction
+POST /api/servers/example/inspect  -> real list: echo
+POST /api/servers/example/tools/echo/call
+body: {"arguments":{"message":"hello"}}
+UI response: requestId + duration + content text "hello".
+
+POST /api/servers/dcinside/inspect -> 5 tools
+POST /api/servers/dcinside/tools/dc_parse_post_url/call
+body: {"arguments":{"url":"https://gall.dcinside.com/board/view/?id=example&no=123"}}
+UI response: canonicalUrl, galleryId, postNo and raw JSON.
+
+[7] Acceptance Tests
+[ ] unknown id/tool never reaches spawn/callTool.
+[ ] unauth access returns 401, CSRF failure 403.
+[ ] GET tools before inspect -> typed 409.
+[ ] tool isError -> HTTP 200 with outcome tool_error; timeout -> 504.
+[ ] Tool argument schema validation (required, enum, bounds, object).
+[ ] response bytes bounded, HTML content safely escaped.
+[ ] API contract inferred/compiled by both apps without Node library leaking to web.

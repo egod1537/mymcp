@@ -1,0 +1,39 @@
+{
+  "name": "@mymcp/console-web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Blueprint React frontend for the local MCP Console",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "build": "tsc -b && vite build",
+    "clean": "node -e \"const fs=require('node:fs');for(const path of ['dist','public/monaco'])fs.rmSync(path,{recursive:true,force:true})\"",
+    "dev": "vite",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "typecheck": "tsc -b --pretty false"
+  },
+  "dependencies": {
+    "@blueprintjs/core": "6.21.0",
+    "@blueprintjs/icons": "6.14.1",
+    "@mymcp/console-contracts": "workspace:*",
+    "@tanstack/react-query": "5.105.0",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.64.1",
+    "@testing-library/jest-dom": "6.9.1",
+    "@testing-library/react": "16.3.0",
+    "@testing-library/user-event": "14.6.1",
+    "@types/react": "18.3.31",
+    "@types/react-dom": "18.3.7",
+    "@vitejs/plugin-react": "6.1.2",
+    "jsdom": "27.0.1",
+    "typescript": "6.0.3",
+    "vite": "8.3.5",
+    "vitest": "5.0.5"
+  }
+}

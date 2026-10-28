@@ -1,22 +1,22 @@
 # mymcp
 
 TypeScript monorepo infrastructure for developing, testing, maintaining, and distributing MCP
-servers independently. Phase 1 provides the shared toolchain, a small shared package, a safe app
-generator, and one functional reference server.
-
-The pre-existing `dcinside`, `google-routes`, and `japanese-vocab` sources have **not** been
-migrated into this workspace. They remain under `mcps/` as migration inputs and are excluded from
-phase-1 workspace commands.
+servers independently. The repository contains stdio MCP servers, shared packages, and a local
+operator console for inspecting and invoking an explicit allowlist of those servers.
 
 ## Repository map
 
 ```text
 apps/example/       Reference stdio MCP server
+apps/google-maps/   Read-only Google Maps MCP server
+apps/console-*/     Local MCP Console web and API applications
 packages/shared/    Typed errors and structured stderr logging
 packages/config/    Shared strict TypeScript configuration
+packages/mcp-client/          Reusable Node-only stdio MCP client
+packages/console-contracts/   Browser-safe Console API contracts
 scripts/            MCP app scaffolding and its tests
 docs/               Architecture, development, deployment, and catalog docs
-mcps/               Pre-existing projects; not migrated or managed in phase 1
+mcps/               MCP server workspace packages
 ```
 
 ## Requirements
@@ -41,18 +41,24 @@ pnpm test
 pnpm build
 ```
 
+The Console has its own setup and security requirements. Start with the
+[Console setup guide](docs/console/setup.md) and read the
+[security guidance](docs/console/security.md) before exposing it on a network.
+
 Useful root commands:
 
-| Command             | Purpose                                                    |
-| ------------------- | ---------------------------------------------------------- |
-| `pnpm dev`          | Run the example server from TypeScript in watch mode       |
-| `pnpm build`        | Build all managed workspace packages to `dist/`            |
-| `pnpm test`         | Run scaffold, shared-package, and MCP tests                |
-| `pnpm typecheck`    | Typecheck every managed package with strict settings       |
-| `pnpm lint`         | Lint phase-1 source and scripts                            |
-| `pnpm format`       | Format phase-1 files                                       |
-| `pnpm format:check` | Check formatting without changing files                    |
-| `pnpm clean`        | Remove generated `dist/` directories from managed packages |
+| Command                      | Purpose                                                    |
+| ---------------------------- | ---------------------------------------------------------- |
+| `pnpm dev`                   | Run the example server from TypeScript in watch mode       |
+| `pnpm console:dev`           | Run the Console API and Vite UI on loopback                |
+| `pnpm console:hash-password` | Generate the Console's Argon2id admin password hash        |
+| `pnpm build`                 | Build all managed workspace packages to `dist/`            |
+| `pnpm test`                  | Run scaffold, shared-package, MCP, and Console unit tests  |
+| `pnpm typecheck`             | Typecheck every managed package with strict settings       |
+| `pnpm lint`                  | Lint workspace source and scripts                          |
+| `pnpm format`                | Format managed source and documentation                    |
+| `pnpm format:check`          | Check formatting without changing files                    |
+| `pnpm clean`                 | Remove generated `dist/` directories from managed packages |
 
 ## Run the example with a local MCP client
 
@@ -101,11 +107,12 @@ See [development guidance](docs/development.md) for the full workflow and
 
 ## MCP catalog
 
-| MCP              | Phase-1 state                   | Details                                                          |
-| ---------------- | ------------------------------- | ---------------------------------------------------------------- |
-| `example`        | Implemented reference           | [`apps/example`](apps/example), [README](apps/example/README.md) |
-| `dcinside`       | Planned migration; not migrated | [Catalog entry](docs/mcp-catalog.md#dcinside)                    |
-| `google-routes`  | Planned migration; not migrated | [Catalog entry](docs/mcp-catalog.md#google-routes)               |
-| `japanese-vocab` | Planned migration; not migrated | [Catalog entry](docs/mcp-catalog.md#japanese-vocab)              |
+| MCP              | Repository state                           | Details                                                          |
+| ---------------- | ------------------------------------------ | ---------------------------------------------------------------- |
+| `example`        | Implemented; Console-verified              | [`apps/example`](apps/example), [README](apps/example/README.md) |
+| `dcinside`       | Implemented; Console-verified              | [Catalog entry](docs/mcp-catalog.md#dcinside)                    |
+| `google-maps`    | Implemented; not enabled in Console P0     | [Catalog entry](docs/mcp-catalog.md#google-maps)                 |
+| `google-routes`  | Build/test baseline only; Console-disabled | [Catalog entry](docs/mcp-catalog.md#google-routes)               |
+| `japanese-vocab` | Build/test baseline only; Console-disabled | [Catalog entry](docs/mcp-catalog.md#japanese-vocab)              |
 
 The complete source-of-truth catalog is [docs/mcp-catalog.md](docs/mcp-catalog.md).

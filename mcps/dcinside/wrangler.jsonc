@@ -1,0 +1,41 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "mcp-dc",
+  "main": "src/worker.ts",
+  "compatibility_date": "2026-10-28",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "preview_urls": false,
+  "vars": {
+    "DCINSIDE_REMOTE_MODE": "authorized",
+    "DCINSIDE_ALLOWED_GALLERIES": "*",
+    "DCINSIDE_REMOTE_RATE_LIMIT_PER_MINUTE": "5",
+  },
+  "routes": [
+    {
+      "pattern": "mcp-dc.mangagaki.net",
+      "custom_domain": true,
+    },
+  ],
+  "ratelimits": [
+    {
+      "name": "MCP_RATE_LIMITER",
+      "namespace_id": "1538",
+      "simple": {
+        "limit": 60,
+        "period": 60,
+      },
+    },
+    {
+      "name": "DCINSIDE_REMOTE_RATE_LIMITER",
+      "namespace_id": "1539",
+      "simple": {
+        "limit": 5,
+        "period": 60,
+      },
+    },
+  ],
+  "observability": {
+    "enabled": true,
+  },
+}

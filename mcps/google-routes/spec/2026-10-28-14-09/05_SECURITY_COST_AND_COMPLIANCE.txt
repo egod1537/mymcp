@@ -1,0 +1,65 @@
+05 - SECURITY, COST AND GOOGLE MAPS PLATFORM COMPLIANCE
+
+CONFIGURATION
+Required live variable:
+  GOOGLE_MAPS_API_KEY=
+Optional app variables (validate ranges):
+  GOOGLE_MAPS_HTTP_TIMEOUT_MS=8000
+  GOOGLE_MAPS_MAX_RETRIES=2
+  GOOGLE_MAPS_CALLS_PER_MINUTE=30
+  GOOGLE_MAPS_MAX_CONCURRENT_CALLS=2
+  LOG_LEVEL=info
+  GOOGLE_MAPS_LIVE_TESTS=0
+Provide .env.example with placeholders only, never a real key.
+Use .gitignore to exclude .env, .env.*, credential dumps, node_modules, dist,
+coverage; explicitly unignore .env.example.
+
+GOOGLE CLOUD SETUP TO DOCUMENT
+1. Create/select Google Cloud project with billing enabled.
+2. Enable Routes API, Places API (New), Geocoding API.
+3. Create an API key appropriate for SERVER-SIDE web service usage.
+4. Apply API restrictions to the three required APIs. Where applicable,
+   apply compatible server IP restrictions for a fixed server egress IP.
+5. Set low initial per-API quotas and Cloud Billing budget alerts.
+6. Put key only in local environment/secure deployment secret manager.
+7. For dynamic residential IPs, explain the practical limits of IP allowlisting;
+   do not falsely promise that API restrictions alone eliminate key leakage risk.
+
+RATE LIMITS / COST SAFETY
+- Local in-process sliding-window or token-bucket cap (default 30 total Google
+  calls/minute) and max 2 concurrent Google requests.
+- Preserve single-flight not required in v1. No prefetching or batch fan-outs.
+- Each resolve_location invokes ONE upstream API except permitted retry.
+- Each get_route invokes ONE upstream Routes API request except permitted retry.
+- No automatic place text search hidden inside get_route (AI client calls resolve_location).
+- No expensive optional fields by default, no '*' field masks.
+- No live Google API calls on install, build, test, lint, typecheck or CI.
+- Do not misstate API usage as free. A Google billing account may accrue cost.
+
+SECURITY
+- Read-only tools. Absolutely no write operations, token sharing, or scraping.
+- Input validate/length-limit query, address, Place ID, language, region, coords,
+  timestamps, preferences and booleans.
+- Fixed URL allowlist, HTTPS only, no redirects to uncontrolled endpoints.
+- Never interpolate user-provided URL into fetch.
+- Error messages and logs must redact API key from URLs, headers and bodies.
+- Server stderr logs may include operation name, duration, status and a safe
+  per-operation request ID, but not secrets or sensitive raw location queries by default.
+- Use least-privilege API key + per-project quotas. Do not commit a key.
+
+GOOGLE DATA POLICIES
+- Abide by current Google Maps Platform Terms of Service, Service Specific Terms,
+  Places API (New) and Geocoding policies, and attribution requirements.
+- Do NOT add persistent caches for address, coordinates, route geometry, travel
+  times or place content by default. Even temporary caching has contract limits.
+- Google Place IDs are a special documented exception to many caching restrictions;
+  storing a Place ID does not authorize storing all related location content.
+- Client UIs displaying Google-derived content must follow Google map/non-map
+  attribution and applicable Google Maps logo/third-party attribution rules.
+  The MCP cannot guarantee downstream UI compliance; README must flag this.
+- Do not imply that walking/bicycling paths are safe or verified; surface any
+  provider warnings (Google says these modes may be beta/incomplete).
+- Transit coverage and schedules vary by region/date; don't guarantee accuracy.
+- Avoid implementing provider-agnostic offline data export/aggregation features.
+
+Read next: 06_TESTING_AND_CI.txt

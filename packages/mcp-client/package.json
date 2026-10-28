@@ -1,0 +1,34 @@
+{
+  "name": "@mymcp/mcp-client",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Node-only MCP stdio client and allowlisted connection manager",
+  "engines": {
+    "node": ">=22"
+  },
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
+    "test": "pnpm --filter @mymcp/console-contracts build && pnpm --filter @mymcp/example... build && pnpm --filter @mymcp/dcinside build && vitest run",
+    "typecheck": "pnpm --filter @mymcp/console-contracts build && tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.2",
+    "@mymcp/console-contracts": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.5",
+    "typescript": "6.0.3",
+    "vitest": "5.0.5"
+  }
+}

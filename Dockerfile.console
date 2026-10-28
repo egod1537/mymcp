@@ -1,0 +1,50 @@
+# syntax=docker/dockerfile:1.7
+FROM node:22-bookworm-slim AS build
+
+ENV PNPM_HOME=/pnpm
+ENV PATH=$PNPM_HOME:$PATH
+WORKDIR /app
+
+RUN corepack enable && corepack prepare pnpm@12.9.1 --activate
+COPY . .
+RUN pnpm install --frozen-lockfile
+RUN pnpm --filter @mymcp/example... build \
+ && pnpm --filter @mymcp/dcinside build \
+ && pnpm --filter @mymcp/mcp-client... build \
+ && pnpm --filter @mymcp/console-server... build \
+ && pnpm --filter @mymcp/console-web build
+
+FROM node:22-bookworm-slim AS runtime
+
+ENV NODE_ENV=production
+ENV PNPM_HOME=/pnpm
+ENV PATH=$PNPM_HOME:$PATH
+WORKDIR /app
+
+RUN corepack enable && corepack prepare pnpm@12.9.1 --activate
+
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY apps/console-server/package.json apps/console-server/package.json
+COPY apps/example/package.json apps/example/package.json
+COPY mcps/dcinside/package.json mcps/dcinside/package.json
+COPY packages/console-contracts/package.json packages/console-contracts/package.json
+COPY packages/mcp-client/package.json packages/mcp-client/package.json
+COPY packages/shared/package.json packages/shared/package.json
+RUN pnpm install --prod --frozen-lockfile
+
+COPY --from=build /app/apps/console-server/dist apps/console-server/dist
+COPY --from=build /app/apps/console-web/dist apps/console-web/dist
+COPY --from=build /app/apps/example/dist apps/example/dist
+COPY --from=build /app/mcps/dcinside/dist mcps/dcinside/dist
+COPY --from=build /app/packages/console-contracts/dist packages/console-contracts/dist
+COPY --from=build /app/packages/mcp-client/dist packages/mcp-client/dist
+COPY --from=build /app/packages/shared/dist packages/shared/dist
+COPY config/mcp-registry.json config/mcp-registry.json
+
+# Unverified registry entries remain metadata-only. No unverified source or executable is copied.
+RUN mkdir -p /app/mcps/google-routes/dist /app/mcps/jlpt/dist /data/dcinside \
+ && chown -R node:node /app /data
+
+USER node
+EXPOSE 4173
+CMD ["node", "apps/console-server/dist/main.js"]

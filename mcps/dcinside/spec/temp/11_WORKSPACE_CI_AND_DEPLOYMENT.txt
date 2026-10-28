@@ -1,0 +1,46 @@
+# 11 / Workspaces, CI, 배포/롤백
+
+[현재 Workspace 사항]
+- Node >=22, pnpm@12.9.1, pnpm-workspace.yaml apps/* mcps/* packages/*.
+- 모노레포 패키지 독립 build/test 유지.
+- TypeScript NodeNext, strict, ESM, 상대 import .js suffix.
+- 기존 @modelcontextprotocol/sdk=1.32.2와 zod=4.6.7 무근거 major upgrade 금지.
+- 외부 dcinside.js CommonJS import는 Node ESM에서 createRequire 검토, package exports 구조/타입 컴파일 검증.
+
+[작업 순서]
+1. git status -sb 확인 및 커밋되지 않은 변경 보호.
+2. 별도 feature branch (예: feat/dcinside-provider-upgrade) 생성 권장.
+3. 기존 API/테스트 snapshot 추가.
+4. @gurumnyang/dcinside.js 정확 버전 선택, lockfile 갱신, MIT NOTICE 고지.
+5. Provider + service + normalized schemas + import 구현.
+6. Tools와 README 및 catalog 업데이트.
+7. Console이 현재 로컬에 있다면 UI 연동; 없다면 '미구현' 보고.
+8. 모든 자동 테스트 실행; static/secret scan; git diff 확인.
+9. commit message 예: feat(dcinside): add normalized provider and deep-search imports.
+10. PR 또는 사용자 지시대로 push. main 강제 푸시/리셋 금지.
+
+[로컬 실행]
+cd /Users/yang/proj/mymcp
+pnpm install
+pnpm --filter @mymcp/dcinside typecheck
+pnpm --filter @mymcp/dcinside test
+pnpm --filter @mymcp/dcinside build
+# 기존 MCP client 설정은 node /absolute/path/to/mymcp/mcps/dcinside/dist/index.js
+
+[.env]
+BRAVE_SEARCH_API_KEY 는 기존 값 유지. 절대 내용을 출력하거나 echo/commit하지 않음.
+DCINSIDE_REMOTE_MODE=disabled 기본값으로 두어 정상 검색/local import 흐름을 검증.
+허가된 모드만 별도 문서화된 작업 후 사용. 관련 자료를 Git에 민감한 계약 정보 형태로 올리지 말 것.
+
+[CI]
+- 기존 .github/workflows/ci.yml root validation 경로 유지.
+- 외부 네트워크나 실제 API Key 없이도 통과해야 함.
+- new dependencies lockfile에 포함하고 license/security audit 결과 확인.
+- Console 빌드가 존재하면 린트/타입체크/빌드도 기존 워크스페이스 스크립트에 포함.
+
+[운영 및 회귀]
+- 업그레이드 후 기존 user_import posts 데이터 파일 그대로 read.
+- old tool calls remain stable in both mymcp Console and third-party MCP client.
+- 오류율, import row rejection, 모듈 로드 성공 등은 민감정보 없이 telemetry.
+- 롤백 시 신규 import 인덱스는 분리 저장하여 v1 post store 손상 없음.
+- README를 코드가 실제 구현한 상태에 맞춰 업데이트. 'live support'가 검증되지 않았다면 완료라고 표시 금지.

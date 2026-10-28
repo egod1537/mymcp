@@ -1,0 +1,198 @@
+03 - GET_ROUTE MCP TOOL
+
+GOAL
+Return the actual route computed by Google's Routes API, for identified origin
+and destination. Support public transit details and optional alternate routes.
+Do NOT implement a route matrix, intermediate stops, reordering, or routing heuristics.
+
+MCP TOOL NAME
+  get_route
+
+INPUT CONTRACT
+  {
+    origin: Waypoint,
+    destination: Waypoint,
+    mode: 'TRANSIT' | 'WALK' | 'DRIVE' | 'BICYCLE',  // REQUIRED
+    departure_time?: string,           // RFC3339 with Z or numeric UTC offset
+    arrival_time?: string,             // TRANSIT only; mutually exclusive
+    alternatives?: boolean,           // default false
+    transit_preference?: 'LESS_WALKING' | 'FEWER_TRANSFERS',
+    transit_modes?: ('BUS'|'SUBWAY'|'TRAIN'|'LIGHT_RAIL'|'RAIL')[],
+    traffic_aware?: boolean,          // DRIVE only, default false
+    include_steps?: boolean,         // default true
+    include_polyline?: boolean,      // default false
+    language_code?: string,          // default 'ko'
+    region_code?: string             // optional two-letter hint
+  }
+  Waypoint =
+    {"type":"place_id", "place_id":"ChIJ..."}
+    OR {"type":"coordinates", "latitude":35.0, "longitude":139.0}
+    OR {"type":"address", "address":"1600 Amphitheatre Pkwy, ..."}
+
+Note: For user-provided place NAMES, the AI client must call resolve_location
+first. NEVER mistake a place name for a confirmed address. Coordinates and
+Place IDs already provided by the client may be used directly.
+Do not accept raw arbitrary URLs, geographic metadata from unknown endpoints,
+or an untyped mixture of waypoint fields.
+
+VALIDATION AND MODE MATRIX
+- departure_time and arrival_time MUST NOT both be present.
+- arrival_time is only supported for TRANSIT; reject on other modes.
+- transit_preference/transit_modes are allowed ONLY for TRANSIT.
+- traffic_aware is allowed ONLY for DRIVE; false/omitted is okay everywhere.
+- For simplicity, explicit departure_time is supported only for TRANSIT and DRIVE.
+  Reject it for WALK/BICYCLE instead of silently ignoring.
+- If TRANSIT: no intermediate waypoints; transit schedules are limited by Google
+  to 7 days before and 100 days after request time. Validate relative to injected
+  clock, with a clear, time-specific error; the upstream server remains authoritative.
+- Require timezone offsets in input timestamps: 2027-02-27T09:30:00+09:00 is valid;
+  2027-02-27T09:30:00 (naive) is invalid.
+- Walking and bicycling route data may be in beta; include Google's warnings in output.
+- A route may be unavailable in a region, especially for some travel modes.
+- 'alternatives: true' asks Google for options; it does NOT guarantee >1 route.
+
+UPSTREAM REQUEST
+  POST https://routes.googleapis.com/directions/v2:computeRoutes
+  Headers:
+    Content-Type: application/json
+    X-Goog-Api-Key: [secret]
+    X-Goog-FieldMask: [explicit fields derived from options]
+  Basic body:
+    {
+      "origin": {"placeId":"..."},
+      "destination": {"placeId":"..."},
+      "travelMode": "TRANSIT",
+      "computeAlternativeRoutes": true,
+      "languageCode": "ko"
+    }
+
+WAYPOINT MAPPING
+  place_id    -> {"placeId":"..."}
+  coordinates -> {"location":{"latLng":{"latitude":..,"longitude":..}}}
+  address     -> {"address":"..."}
+Only one representation per waypoint. Reject impossible values via Zod.
+
+REQUEST OPTIONS
+- mode -> travelMode (Google API vocabulary: TRANSIT/WALK/DRIVE/BICYCLE).
+- alternatives -> computeAlternativeRoutes; no custom candidate enumeration.
+- departure_time -> departureTime, arrival_time -> arrivalTime.
+- TRANSIT: transitPreferences = {routingPreference, allowedTravelModes}
+  only when such options were supplied. Do not set the global routingPreference.
+- DRIVE: if traffic_aware=true, use routingPreference: 'TRAFFIC_AWARE'.
+  Otherwise omit routingPreference to use Google's default. Do not pretend
+  duration is live traffic-aware when traffic_aware=false.
+- BICYCLE/WALK: no traffic preference, no transit preferences, no route modifiers.
+- Keep polylineQuality 'OVERVIEW' and encoding 'ENCODED_POLYLINE' when requesting
+  the route polyline. No high-quality geometry or traffic-colored polylines in v1.
+- No extraComputations; no toll estimates or fuel estimates.
+
+RESPONSE FIELD MASKS - COMPUTE THESE EXACTLY FROM OPTIONS
+Base fields, always:
+  routes.distanceMeters,
+  routes.duration,
+  routes.description,
+  routes.routeLabels,
+  routes.warnings,
+  routes.legs.startLocation,
+  routes.legs.endLocation,
+  fallbackInfo
+If include_steps=true, append:
+  routes.legs.steps.travelMode,
+  routes.legs.steps.distanceMeters,
+  routes.legs.steps.staticDuration,
+  routes.legs.steps.navigationInstruction.instructions,
+  routes.legs.steps.startLocation,
+  routes.legs.steps.endLocation
+If include_steps=true AND mode=TRANSIT, append:
+  routes.legs.steps.transitDetails.stopDetails,
+  routes.legs.steps.transitDetails.localizedValues,
+  routes.legs.steps.transitDetails.transitLine.name,
+  routes.legs.steps.transitDetails.transitLine.nameShort,
+  routes.legs.steps.transitDetails.transitLine.vehicle.type,
+  routes.legs.steps.transitDetails.headsign,
+  routes.legs.steps.transitDetails.stopCount
+For TRANSIT summary optionally append:
+  routes.travelAdvisory.transitFare,
+  routes.localizedValues.transitFare
+If include_polyline=true, append:
+  routes.polyline.encodedPolyline
+Do NOT use '*' or request 'routes' wholesale. Correct field-path validation is
+mandatory in a live smoke test; adapt a path if official reference changed.
+
+NORMALIZED SUCCESS RESULT
+  {
+    "status": "ok",
+    "mode": "TRANSIT",
+    "origin": {"type":"place_id", "place_id":"..."},
+    "destination": {"type":"place_id", "place_id":"..."},
+    "requested_departure_time": null,
+    "requested_arrival_time": null,
+    "routes": [
+      {
+        "index": 0,
+        "duration_seconds": 0,
+        "distance_meters": 0,
+        "description": "...",
+        "labels": [],
+        "warnings": [],
+        "overview_polyline": null,
+        "fare": null,
+        "legs": [
+          {
+            "start_location": {"latitude":0.0,"longitude":0.0},
+            "end_location": {"latitude":0.0,"longitude":0.0},
+            "steps": [
+              {
+                "mode": "WALK",
+                "distance_meters": 0,
+                "duration_seconds": 0,
+                "instruction": "...",
+                "start_location": null,
+                "end_location": null,
+                "transit": null
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "fallback_info": null,
+    "attribution": "Google Maps"
+  }
+Numeric zeros here represent TYPE PLACEHOLDERS, not real route answers.
+Do not hard-code or fabricate travel times, fares, stations or coordinates.
+Use null for genuinely unavailable optional information, not 0.
+Google Duration strings like '2420s' or '3.5s' should be parsed robustly to
+numeric seconds (fractional support), rejecting malformed duration strings.
+'fare' is present only if Google supplies a fare. For monetary values preserve
+currency code and numeric units/nanos if provided; never assume JPY or KRW.
+The route's start/end coordinates may be snapped to a routable road or station,
+so return the actual leg locations instead of pretending they match input exactly.
+
+TRANSIT STEP STRUCTURE (only when supplied)
+  transit: {
+    "departure_stop": {"name":"...","latitude":null,"longitude":null},
+    "arrival_stop": {"name":"...","latitude":null,"longitude":null},
+    "departure_time": "RFC3339 from upstream or null",
+    "arrival_time": "RFC3339 from upstream or null",
+    "line_name": "... or null",
+    "line_short_name": "... or null",
+    "headsign": "... or null",
+    "vehicle_type": "... or null",
+    "stop_count": null,
+    "departure_local_time": "... or null",
+    "arrival_local_time": "... or null",
+    "time_zone": "... or null"
+  }
+Use upstream localized time and IANA timezone fields if available. If departure
+and arrival local times use different zones, preserve BOTH time zones separately;
+do not flatten them into one invented zone. Do not derive station or transfer
+names from polyline geometry. Walking portions are ordinary WALK steps.
+
+NO ROUTES / ERRORS
+- HTTP 200 + missing/empty routes => {status:'no_route', routes:[]}.
+- HTTP and JSON errors => structured error with retry metadata.
+- If google returns a warning/fallback, preserve it rather than hiding it.
+- Never claim itinerary optimization or guaranteed timetables.
+
+Read next: 04_GOOGLE_HTTP_AND_ERRORS.txt

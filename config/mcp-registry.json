@@ -1,0 +1,93 @@
+{
+  "version": 1,
+  "servers": [
+    {
+      "id": "example",
+      "displayName": "Example",
+      "description": "Reference MCP server used to verify protocol connectivity.",
+      "catalogState": "supported",
+      "transport": "stdio",
+      "command": "node",
+      "args": ["apps/example/dist/index.js"],
+      "cwd": "apps/example",
+      "requiredBuildPackage": "@mymcp/example",
+      "permittedEnvironmentKeys": [],
+      "expectedTools": ["echo"],
+      "supportsWriteTools": false,
+      "launchByDefault": false
+    },
+    {
+      "id": "dcinside",
+      "displayName": "DCInside",
+      "description": "Authorized dcinside.js direct search/read, optional Brave/local search, URL parsing, and user-supplied local post data.",
+      "catalogState": "supported",
+      "transport": "stdio",
+      "command": "node",
+      "args": ["mcps/dcinside/dist/index.js"],
+      "cwd": "mcps/dcinside",
+      "requiredBuildPackage": "@mymcp/dcinside",
+      "permittedEnvironmentKeys": [
+        "BRAVE_SEARCH_API_KEY",
+        "DCINSIDE_DATA_DIR",
+        "DCINSIDE_SEARCH_TIMEOUT_MS",
+        "DCINSIDE_MAX_SEARCHES_PER_MINUTE",
+        "DCINSIDE_REMOTE_MODE",
+        "DCINSIDE_MAX_IMPORTED_ROWS",
+        "DCINSIDE_MAX_IMPORT_BYTES",
+        "DCINSIDE_MAX_SEARCH_PROVIDER_PAGES",
+        "DCINSIDE_ALLOWED_GALLERIES",
+        "DCINSIDE_REMOTE_RATE_LIMIT_PER_MINUTE"
+      ],
+      "expectedTools": [
+        "dc_search_posts",
+        "dc_parse_post_url",
+        "dc_import_post",
+        "dc_get_post",
+        "dc_get_comments",
+        "dc_list_gallery_posts",
+        "dc_get_post_with_comments",
+        "dc_import_search_results",
+        "dc_import_post_html"
+      ],
+      "supportsWriteTools": true,
+      "launchByDefault": false
+    },
+    {
+      "id": "google-routes",
+      "displayName": "Google Routes",
+      "description": "Existing Google Routes MCP pending Console protocol verification.",
+      "catalogState": "unverified",
+      "transport": "stdio",
+      "command": "node",
+      "args": ["mcps/google-routes/dist/index.js"],
+      "cwd": "mcps/google-routes",
+      "requiredBuildPackage": "@mymcp/google-routes",
+      "permittedEnvironmentKeys": [
+        "GOOGLE_MAPS_API_KEY",
+        "GOOGLE_ROUTES_TIMEOUT_MS",
+        "GOOGLE_ROUTES_MAX_CONCURRENCY",
+        "GOOGLE_ROUTES_MAX_MATRIX_ELEMENTS",
+        "GOOGLE_ROUTES_CACHE_TTL_MS",
+        "LOG_LEVEL"
+      ],
+      "launchByDefault": false
+    },
+    {
+      "id": "japanese-vocab",
+      "displayName": "Japanese Vocabulary",
+      "description": "Personal vocabulary MCP pending Console protocol verification.",
+      "catalogState": "unverified",
+      "transport": "stdio",
+      "command": "node",
+      "args": ["mcps/jlpt/dist/index.js"],
+      "cwd": "mcps/jlpt",
+      "requiredBuildPackage": "@mymcp/japanese-vocab",
+      "permittedEnvironmentKeys": [
+        "JAPANESE_VOCAB_DB_PATH",
+        "JAPANESE_VOCAB_DEFAULT_DAILY_COUNT",
+        "LOG_LEVEL"
+      ],
+      "launchByDefault": false
+    }
+  ]
+}

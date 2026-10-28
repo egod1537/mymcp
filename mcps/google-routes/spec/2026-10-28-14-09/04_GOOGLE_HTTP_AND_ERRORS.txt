@@ -1,0 +1,72 @@
+04 - GOOGLE HTTP CLIENT, NORMALIZATION AND ERRORS
+
+FIXED ENDPOINTS ONLY
+- Places Text Search New: https://places.googleapis.com/v1/places:searchText
+- Geocoding v3: https://maps.googleapis.com/maps/api/geocode/json
+- Routes Compute Routes: https://routes.googleapis.com/directions/v2:computeRoutes
+- Do not allow tool inputs to override hostname/scheme or specify arbitrary URLs.
+- Use TLS and native fetch; never call Google API on module import.
+
+COMMON CLIENT CONTRACT
+- postJson(url, headers, body) and getJson(url, query) internally only.
+- Centralized API-key injection. Always use fixed endpoint host allowlist.
+- Per-request AbortController / AbortSignal.timeout with configurable max 8s default.
+- Limit response size to a reasonable cap; reject malformed oversized JSON.
+- Parse non-2xx Google errors with optional {error:{code,status,message}}.
+- For Geocoding v3 ALSO evaluate top-level status, including when HTTP 200.
+- Validate minimum relevant fields of response at runtime; do not trust TypeScript
+  cast of unknown JSON as sufficient input validation.
+
+RETRIES
+- Retry only genuinely transient conditions: network glitches, HTTP 429, 500,
+  502, 503, 504, and Geocoding UNKNOWN_ERROR.
+- Maximum 2 retries after first attempt, with exponential backoff and jitter.
+- Respect Retry-After when supplied, within a bounded wait budget.
+- Never retry INVALID_ARGUMENT, REQUEST_DENIED or billing failures.
+- Avoid unbounded recursion, indefinite waits, or client-visible hang.
+- Use injected sleep/clock in retry unit tests to avoid actual waiting.
+
+ERROR MODEL (NORMALIZED JSON + MCP ERROR FLAG)
+  {
+    "ok": false,
+    "error": {
+      "code": "INVALID_ARGUMENT",
+      "message": "Helpful message without secrets",
+      "retryable": false,
+      "upstream_status": null
+    }
+  }
+Suggested stable codes:
+  INVALID_ARGUMENT,
+  CONFIG_MISSING,
+  UPSTREAM_PERMISSION_DENIED,
+  UPSTREAM_QUOTA_EXCEEDED,
+  RATE_LIMITED,
+  UPSTREAM_UNAVAILABLE,
+  UPSTREAM_BAD_RESPONSE,
+  TIMEOUT,
+  INTERNAL_ERROR.
+Use tool result isError=true (if available in current SDK) for failure responses.
+A known empty search or route is a NORMAL result (no_results/no_route), not an error.
+Errors must not include the API key, Authorization headers, request body secrets,
+stack traces or raw Google response blobs. Include HTTP status when safe.
+
+RESULT NORMALIZATION
+- Implement pure, side-effect-free normalizers to separate Google response shape
+  from user-facing tool schema. Test these with pinned fixture data.
+- Strings: trim when safe; preserve Unicode characters in names/addresses.
+- Coordinates: preserve numeric decimal precision; validate finite numbers.
+- Time: request RFC3339 with offset; return upstream RFC3339 values unchanged.
+- Durations: convert Google protobuf duration (e.g. '2420s') into seconds.
+- Missing fields: return nullable or omit in a documented consistent manner.
+- Ensure output JSON serializes without bigint/NaN/Infinity.
+
+MCP BEHAVIOR
+- Register tool input schemas with Zod.
+- Tool descriptions should tell the model that Places resolution is a candidate
+  lookup, and route results are Google estimates with possible omissions.
+- Keep JSON tool output size bounded; optional steps/polyline prevent huge answers.
+- Default include_steps=true, include_polyline=false.
+- Never print raw internal errors to stdout.
+
+Read next: 05_SECURITY_COST_AND_COMPLIANCE.txt

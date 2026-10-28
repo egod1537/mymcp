@@ -11,6 +11,7 @@ const storedCommentSchema = z
     text: z.string().min(1).max(5_000),
     commentId: z.string().max(200).optional(),
     postedAt: z.string().max(100).optional(),
+    parentCommentId: z.string().max(200).optional(),
   })
   .strict();
 
@@ -27,6 +28,8 @@ export const postRecordSchema = z
     comments: z.array(storedCommentSchema).max(100),
     note: z.string().max(2_000).optional(),
     importedAt: z.string().datetime({ offset: true }),
+    imageUrls: z.array(z.string().url()).max(100).optional(),
+    parserVersion: z.string().max(100).optional(),
   })
   .strict();
 
@@ -59,7 +62,7 @@ export class PostStore {
   private readonly postsDirectory: string;
   private readonly writeQueues = new Map<string, Promise<void>>();
 
-  constructor(private readonly dataDirectory: string) {
+  constructor(readonly dataDirectory: string) {
     this.postsDirectory = join(dataDirectory, 'posts');
   }
 

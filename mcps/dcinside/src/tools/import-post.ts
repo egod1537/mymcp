@@ -24,6 +24,9 @@ export function createImportedRecord(input: ImportPostInput, now: () => Date): S
     ...(optionalSanitized(comment.postedAt) === undefined
       ? {}
       : { postedAt: optionalSanitized(comment.postedAt) }),
+    ...(optionalSanitized(comment.parentCommentId) === undefined
+      ? {}
+      : { parentCommentId: optionalSanitized(comment.parentCommentId) }),
   }));
   if (title.trim().length === 0) {
     throw new DomainError(

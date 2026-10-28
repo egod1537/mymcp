@@ -1,0 +1,112 @@
+02 - RESOLVE_LOCATION MCP TOOL
+
+GOAL
+Resolve an unstructured place name or street address to candidate Google Place IDs,
+coordinates, and human-readable addresses. This is an identification tool, not a
+full Places search app. Prefer correct disambiguation over picking the top result.
+
+MCP TOOL NAME
+  resolve_location
+
+INPUT CONTRACT (Zod + good MCP descriptions)
+  {
+    query: string,                        // required, trimmed, length 1..250
+    query_type?: 'place' | 'address',      // default 'place'
+    language_code?: string,              // BCP-47, default 'ko'
+    region_code?: string,                // optional 2-letter regional hint, e.g. 'jp'
+    location_bias?: {
+      latitude: number,                  // -90..90
+      longitude: number,                 // -180..180
+      radius_meters: number              // 1..50000
+    }
+  }
+Do not silently supply a region code or location bias when absent. Do not
+interpret a location bias as a hard geographic restriction.
+
+UPSTREAM A: QUERY_TYPE='place'
+- Use Places API (New) Text Search:
+  POST https://places.googleapis.com/v1/places:searchText
+  Headers:
+    Content-Type: application/json
+    X-Goog-Api-Key: [secret]
+    X-Goog-FieldMask: places.id,places.displayName,places.formattedAddress,places.location
+  Body:
+    { "textQuery": query, "pageSize": 5, "languageCode": language_code }
+    + regionCode when supplied
+    + locationBias.circle when supplied
+- Do NOT request phone numbers, ratings, reviews, opening hours, photos, etc.
+- Do NOT send * as a field mask.
+- Note Google 'places.name' is a resource path and 'places.displayName.text' is the
+  human-readable name; never confuse these with 'places.id' (Place ID).
+- Preserve the order of results without fabricating a confidence score.
+- If a returned place lacks required ID/coordinates, omit that candidate safely;
+  do not fabricate data or turn null into 0.
+
+UPSTREAM B: QUERY_TYPE='address'
+- Use Geocoding API v3 for structured street addresses/plus codes:
+  GET https://maps.googleapis.com/maps/api/geocode/json
+  Query: address=[URL encoded query], key=[secret], language=[language_code]
+  plus optional region=[region_code].
+- Do not send business names to Geocoding API as though they are precise addresses.
+- Parse results[].place_id, formatted_address, geometry.location,
+  geometry.location_type and partial_match when present.
+- Geocoding may return ZERO_RESULTS, OVER_QUERY_LIMIT, REQUEST_DENIED,
+  INVALID_REQUEST, UNKNOWN_ERROR in the response body even with HTTP 200.
+- A partial_match is NOT an exact address match. Expose the flag explicitly.
+- location_bias is not silently applied to address geocoding (the Geocoding API has
+  different viewport bias semantics); either reject location_bias with query_type
+  'address' as INVALID_ARGUMENT or implement/document equivalent bounds carefully.
+  For v1, REJECT that combination with an actionable error.
+
+NORMALIZED OUTPUT - SUCCESS
+  {
+    "status": "ok",
+    "query": "東京駅",
+    "query_type": "place",
+    "source": "google_places_text_search",
+    "candidates": [
+      {
+        "place_id": "[returned by Google]",
+        "display_name": "[returned by Google]",
+        "formatted_address": "[returned by Google]",
+        "latitude": 0.0,
+        "longitude": 0.0,
+        "precision": null,
+        "partial_match": false
+      }
+    ],
+    "needs_disambiguation": false,
+    "attribution": "Google Maps"
+  }
+This is a shape example, NOT fixture values. Never use fake real-world IDs or
+coordinates in live responses. For geocoding, precision = geometry.location_type
+when supplied. For Places, precision = null (do not claim rooftop accuracy).
+
+STATUS RULES
+- No candidates: {status:'no_results', candidates:[], needs_disambiguation:false}.
+- More than 1 plausible candidate: needs_disambiguation=true.
+- Any geocoding partial_match: needs_disambiguation=true, even for 1 candidate.
+- Exactly one non-partial candidate: needs_disambiguation=false.
+- With multiple candidates, RETURN ALL (up to 5), do NOT silently select the first.
+- The MCP client can choose a candidate based on user's explicit city/station context
+  if uniquely determined; otherwise it must ask the user to disambiguate.
+- Never claim a POI's centroid is an exact station gate, platform, building entrance,
+  or car pickup location. The router may snap to the nearest routable point.
+
+API ERRORS
+- Invalid query -> INVALID_ARGUMENT without any Google request.
+- Zero results -> normal no_results response, not invented approximate location.
+- Denied key -> UPSTREAM_PERMISSION_DENIED.
+- Quota exhausted -> UPSTREAM_QUOTA_EXCEEDED / RATE_LIMITED.
+- Unknown or malformed upstream JSON -> UPSTREAM_BAD_RESPONSE.
+
+TEST CASES
+- Korean, English and Japanese Unicode queries.
+- No key leakage in errors.
+- One result, no results, multiple candidates, malformed/partial candidates.
+- Geocoding partial_match true.
+- Location bias shape and radius validation.
+- Missing displayName, missing coords, missing Place ID.
+- Consistent JSON serialization and tool registration.
+
+Read next: 03_GET_ROUTE.txt

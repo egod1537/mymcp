@@ -1,0 +1,46 @@
+# 01 / 현행 레포 분석과 수정 경계
+
+[확인된 현재 main, 0478bd7]
+- Root: Node >=22, pnpm@12.9.1, TypeScript ESM + NodeNext, Vitest, ESLint, Prettier.
+- pnpm-workspace.yaml: apps/*, mcps/*, packages/*.
+- mcps/dcinside/package.json: @mymcp/dcinside, @modelcontextprotocol/sdk 1.32.2, zod 4.6.7.
+- src/server.ts createServer({searchProvider,postStore,now}) 패턴 및 stdio transport.
+- src/providers/brave-search.ts: Brave Search API, site:gall.dcinside.com query, galleryId 필터가 응답 파싱 후에만 적용됨.
+- src/core/schemas.ts: search(query, galleryId?, galleryType?, freshness?,limit<=20); importPost(url,title,bodyText,comments[]); comments(url,offset,limit).
+- src/store/post-store.ts: canonical URL SHA-256 키, JSON 단건, source=user_import, schemaVersion=1, 최대 250KiB.
+- src/tools: dc_search_posts, dc_parse_post_url, dc_import_post, dc_get_post, dc_get_comments.
+- src/tools/get-post.ts/get-comments.ts: 파일 저장된 데이터만 반환, 자동 네트워크 fallback 없음.
+- 기존 테스트는 mock / local fixture 위주로 구성.
+- docs/mcp-catalog.md는 dcinside P0 완료로 분류.
+- 최신 조회에서 Console 코드 commit은 확인되지 않음. 로컬 또는 다른 브랜치에는 있을 수 있으므로 다시 점검.
+
+[구현 전 반드시 조사]
+A. git status --short && git log -3 --oneline && git branch --show-current
+B. ls apps; find mcps/dcinside/src -maxdepth 3 -type f | sort
+C. 현재 git main이 스냅샷과 달라졌으면 새 코드가 기준. 설계/파일명만 조정, 기존 기능 제거 금지.
+D. apps/console-web 또는 apps/console-api 등 Blueprint Console 구현 유무 확인.
+E. package.json의 dependency 및 실제 설치 API, 기존 Tool 호출 테스트 확인.
+F. dcinside.js의 공개 함수와 타입 / README 차이 체크. 검색 타입이나 댓글 페이징 기능을 추측하지 말 것.
+
+[스코프]
+P0: 호환되는 Tool 계약, 갤러리 Brave 필터 개선, deep-search CSV/JSON import, 단일 HTML import, 본문/댓글 local read, normalized output, 예제/검증.
+P1: @gurumnyang/dcinside.js의 typed adapter 및 테스트, permission-gated direct read. Console이 있을 때 UI 연동.
+P2: 인증된 허가 범위 안에서의 live smoke test, 별도 운영 환경 배포.
+
+[비목표]
+- 외부 데이터 대량 크롤링, search_pos 무한 순회, bypass CAPTCHA/403, IP·프록시 회전.
+- DC 계정 로그인, 세션 탈취/저장, 게시글/댓글 작성·삭제·추천.
+- 이미지 파일 다운로드 또는 개인정보 수집/분석.
+- 기존 저장소 전체 구조 재작성, google-routes/JLPT MCP 수정.
+
+[보호할 호환성]
+1. 기존 tool name과 필수 인자는 불변. 신규 인자는 모두 optional.
+2. 기존 JSON 오류 형식 {code,message,retryable?}, MCP isError 유지.
+3. user_import record v1 파일은 그대로 읽을 수 있어야 함. 데이터 마이그레이션 시 읽기 호환을 먼저 도입.
+4. stdio stdout은 JSON-RPC 전용, 로그는 stderr.
+5. 기존 Brave Search Key 환경변수 BRAVE_SEARCH_API_KEY 이름 유지.
+6. 이미지 URL, URL, 게시물 본문은 절대 실행 명령이 아닌 불신 데이터.
+
+[산출]
+- diff 기반 변경 계획과 영향 경로 1회 기록.
+- 기존 Tool 스냅샷 테스트를 먼저 만들어 변경 전/후 계약 비교.

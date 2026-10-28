@@ -1,0 +1,66 @@
+# 03 / Provider 구조, 런타임 모드, 요청 접근제어
+
+[목표]
+검색 provider, 저장소, 외부 게시글 provider를 독립적으로 구성하여 Tool 코드는 동일하게 유지한다.
+기존 createServer DI 패턴은 유지하고 기존 테스트가 오작동하지 않게 optional 확장한다.
+
+[계층]
+McpServer tools/*
+  -> DcinsideService (검색, 읽기, 결과 통합, provenance)
+      -> SearchProvider (Brave 또는 로컬 export 인덱스)
+      -> PostStore (기존 schema v1 읽기, schema v2 추가)
+      -> RemoteReadProvider (옵션, dcinside.js adapter)
+      -> ImportService (CSV/JSON/HTML)
+
+[권장 TS 인터페이스 - 개념 계약; 실제 코드는 현재 패키지 기준 맞출 것]
+interface GallerySelector { galleryId: string; galleryType?: 'major'|'minor'|'mini'; }
+interface NormalizedPostRef extends GallerySelector { postNo:string; canonicalUrl:string; }
+interface RemoteReadProvider {
+  readonly id:'dcinside-js';
+  listGalleryPosts(input:{galleryId:string;page:number;boardType:'all'|'recommend'|'notice'}):Promise<NormalizedPostSummary[]>;
+  getPost(input:NormalizedPostRef):Promise<NormalizedPost|null>;
+  search?(input:{query:string;sort:'latest'|'relevance'}):Promise<NormalizedSearchResult>;
+}
+
+[런타임 모드]
+DCINSIDE_REMOTE_MODE=disabled  (default)
+  - 원격 DCInside request 0건. Brave 조회 + 사용자 소유 데이터 import + local lookup.
+  - dc_list_gallery_posts는 로컬 export에서만 반환하거나 DATA_SOURCE_UNAVAILABLE을 반환.
+DCINSIDE_REMOTE_MODE=authorized
+  - 운영자가 사전 서면 사용허가 및 허용 대상/횟수를 문서화하고 검토한 배포에서만 사용.
+  - 모드 문자열만으로 적법성이 확보되지 않음. 라이브 요청 enable은 별도 배포/운영 검토사항.
+  - 허가 범위 밖 galleryId, endpoint, volume 또는 기능 호출 거부.
+  - 무제한 background sync, 일괄 순회, dynamic bypass 제공하지 않음.
+
+[핵심 동작]
+- dc_get_post(url,sourceMode?): local 우선; sourceMode='local' 기본, authorized mode에서만 explicit remote 허용.
+- dc_get_comments(url,offset,limit,sourceMode?): 기존 local 결과 유지. remote result가 이미 포함한 comments.items 이용, 일부일 경우 partial 표시.
+- dc_get_post_with_comments(url,...): local 또는 승인된 단건 remote result를 단일 반환. 무한 댓글 페이지 자동 fetch 금지.
+- dc_list_gallery_posts(galleryId,page?,boardType?,sourceMode?): local export 우선, remote는 authorized 모드만.
+- dc_search_posts(query,galleryId?,...,sourceMode?): Brave 또는 import된 목록. deep-search 방식의 병합/중복 제거.
+- 잘못된 sourceMode, remote 미허가, provider 다운을 구별해서 반환.
+
+[capability 상태]
+GET 또는 MCP resource로 다음을 보고할 수 있도록 내부 capability 표현:
+{ braveSearchConfigured:boolean, remoteReadEnabled:boolean, localImportEnabled:true,
+  supportedDataSources:['brave_index','user_import','deep_search_export',...],
+  directReadStatus:'disabled'|'authorized'|'unavailable' }
+주의: 이 정보는 내부 자체의 설정/연결 가능 상태이며 '디시 사이트 live 정상'을 보장하지 않음.
+
+[Adapter 주입 및 fail-closed]
+- createServer() 시 자동 remote 네트워크 요청을 생성하거나 보내지 않음.
+- remoteDisabled guard는 외부 패키지를 로딩하기 전에 동작. 실패한 권한 검사를 우회하도록 fallback하지 않음.
+- 폴백 local -> 외부로 자동 전환 금지. 호출자 명시적 sourceMode='authorized'일 때만 수행.
+- provider 결과가 undefined/null이면 NOT_FOUND/REMOTE_UNAVAILABLE을 구분.
+- 저장소 충돌/파손이 있어도 원격 조회로 조용히 보충하지 않음.
+
+[도메인 오류]
+REMOTE_DISABLED, REMOTE_NOT_AUTHORIZED, SOURCE_UNAVAILABLE,
+NOT_IMPORTED, INPUT_INVALID, RATE_LIMITED, UPSTREAM_BLOCKED,
+UPSTREAM_UNAVAILABLE, PARSE_FAILED, DATA_CORRUPT, STORAGE_ERROR.
+기존 SEARCH_PROVIDER_* 오류 계약도 그대로 유지.
+
+[완료 기준]
+- remote disabled 상태에서 network spy가 DC 도메인 호출 0회 검증.
+- 선택한 source와 실제 source가 응답마다 표시됨.
+- @gurumnyang/dcinside.js API는 adapter 단위테스트에서 dependency mock으로 정상 호출/정규화됨.

@@ -2,15 +2,25 @@ node_modules/
 dist/
 coverage/
 *.tsbuildinfo
+apps/console-web/public/monaco/
+apps/console-web/playwright-report/
+apps/console-web/test-results/
 
 # Local environment and secret files. Checked-in examples remain allowed.
 .env
 .env.*
 !.env.example
+!.env.console.example
+
+# Console runtime data is persistent state, never source.
+data/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
 
 .DS_Store
 *.log
 
 # Existing, not-yet-migrated Japanese vocabulary runtime data.
-mcps/japanese-vocab/data/*.db
-mcps/japanese-vocab/data/*.db-*
+mcps/jlpt/data/*.db
+mcps/jlpt/data/*.db-*

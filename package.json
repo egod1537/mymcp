@@ -11,6 +11,8 @@
   "scripts": {
     "build": "pnpm -r --if-present run build",
     "clean": "pnpm -r --if-present run clean",
+    "console:hash-password": "pnpm --filter @mymcp/console-server hash-password",
+    "console:dev": "pnpm --filter @mymcp/mcp-client... build && pnpm --filter @mymcp/example... build && pnpm --filter @mymcp/dcinside build && CONSOLE_HOST=127.0.0.1 CONSOLE_PORT=3000 CONSOLE_ALLOWED_ORIGIN=http://127.0.0.1:5173 CONSOLE_SECURE_COOKIES=false CONSOLE_DATA_DIR=./data pnpm --parallel --filter @mymcp/console-server --filter @mymcp/console-web dev",
     "create:mcp": "node scripts/create-mcp.mjs",
     "dev": "pnpm --filter @mymcp/shared build && pnpm --filter @mymcp/example dev",
     "format": "prettier --write .",
@@ -24,6 +26,7 @@
     "@types/node": "22.20.5",
     "eslint": "10.13.0",
     "eslint-config-prettier": "10.1.8",
+    "eslint-plugin-react-hooks": "7.1.1",
     "globals": "17.13.0",
     "prettier": "3.9.10",
     "typescript": "6.0.3",

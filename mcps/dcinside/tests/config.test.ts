@@ -18,11 +18,15 @@ describe('loadConfig', () => {
         DCINSIDE_SEARCH_TIMEOUT_MS: '999999',
         DCINSIDE_MAX_SEARCHES_PER_MINUTE: '999',
       }),
-    ).toEqual({
+    ).toMatchObject({
       braveSearchApiKey: 'key',
       dataDir: '/tmp/dcinside-test-data',
       searchTimeoutMs: 15_000,
       maxSearchesPerMinute: 30,
+      remoteMode: 'disabled',
+      maxImportedRows: 1_000,
+      maxImportBytes: 1_048_576,
+      maxSearchProviderPages: 2,
     });
     expect(
       loadConfig({
@@ -36,5 +40,18 @@ describe('loadConfig', () => {
     expect(() => loadConfig({ DCINSIDE_SEARCH_TIMEOUT_MS: 'fast' })).toThrowError(
       /DCINSIDE_SEARCH_TIMEOUT_MS/,
     );
+  });
+
+  it('keeps direct reads disabled by default and does not invent an authorized rate limit', () => {
+    const disabled = loadConfig({});
+    expect(disabled.remoteMode).toBe('disabled');
+    expect(disabled.remoteRateLimitPerMinute).toBeUndefined();
+
+    const authorized = loadConfig({
+      DCINSIDE_REMOTE_MODE: 'authorized',
+      DCINSIDE_ALLOWED_GALLERIES: 'japan, test ',
+    });
+    expect([...authorized.allowedGalleries]).toEqual(['japan', 'test']);
+    expect(authorized.remoteRateLimitPerMinute).toBeUndefined();
   });
 });

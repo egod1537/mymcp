@@ -1,0 +1,76 @@
+PHASE 09 — LOGGING, AUDIT TRAIL, METRICS, RETENTION
+Priority: P0 basic, P1 advanced
+
+[1] 기록 원칙
+- 실행 로그는 디버깅을 위한 메타데이터가 기본. 도구 입력과 응답 전문을 기본 DB 저장하지 않음.
+- 민감한 개인 데이터와 Brave API key는 logs/history/browser localStorage에 남기지 않음.
+- event classification: auth, connection/health, tool invocation, operational error.
+- append-only concept, structured JSON logging at Fastify level, SQLite indexes for query UI.
+- Console 서버 shutdown/restart 이후 recent call 메타데이터 보존.
+- SQLite DB 파일은 volume에 보관; repo/이미지 소스에 포함 금지.
+
+[2] SQLite schema 최소안 (명명 자유, 필드 의미 유지)
+execution_events:
+  id TEXT PRIMARY KEY (random id/UUID)
+  server_id TEXT NOT NULL
+  tool_name TEXT NOT NULL
+  started_at_utc TEXT NOT NULL
+  duration_ms INTEGER NOT NULL
+  outcome TEXT (success | tool_error | transport_error | timeout | rejected)
+  error_code TEXT NULL
+  response_bytes INTEGER NULL
+  request_bytes INTEGER NULL
+  is_mcp_tool_error INTEGER NULL
+  request_id TEXT NOT NULL
+  // arguments_raw, response_raw 컬럼 P0 금지
+health_events:
+  id, server_id, checked_at_utc, runtime_state, error_code, duration_ms
+security_events:
+  id, occurred_at_utc, event_type, outcome, client_fingerprint_hash (옵션)
+session_tokens:
+  token_hash, created_at_utc, expires_at_utc, revoked_at_utc
+- DB migrations를 코드로 관리. prepared statements only, 임의 SQL string 조합 금지.
+- SQLite driver는 Node22/arm64/Docker build 호환성 우선 검증. `better-sqlite3`를 쓴다면
+  pnpm allowBuilds/native prebuild 및 Linux arm64 CI를 확인.
+
+[3] Logs UI
+- `/logs` 표: UTC timestamp, Server, Tool, Outcome, Duration, Error Code, requestId.
+- filters: server, tool, outcome, from/to, free text (metadata only).
+- 상세 패널: safe diagnostic details, health events, bounded stderr, warning/trace ID.
+- pagination via cursor, 기본 50개, 최대 200개, 최신 순.
+- 부하 적은 refetch (예: 5s only when page visible and active).
+- error chip: Tool error vs Transport error vs Timeout 별도 색상과 의미.
+- `Copy requestId`/`Copy filtered rows as CSV` (export P1).
+
+[4] Metrics calculation
+- 24h/7d/30d 선택.
+- calls: execution_events의 실제 MCP call attempt, health ping 제외.
+- success rate = successes / (successes + tool_errors + transport_errors + timeouts)
+  (거부된 인증/validation attempts는 별도 rejected로 정의; 분모에서 제외하고 도표에 표시).
+- avg duration = 성공/실패 도구 호출의 duration; p50/p95 P1.
+- most used tools and failures by server.
+- empty range -> 0 calls, success rate '--' (0%라고 허위 표현 금지).
+- timestamps UTC 저장, UI에서 browser timezone(KST) 표시.
+- P1 그래프: per-hour/per-day success/failure and latency trend; 작은 데이터도 정확히 계산.
+
+[5] 보존과 백업
+- 기본 retention 30일, oldest-first pruning daily or startup/restart bounded job.
+- 세션 및 테스트 DB의 retention은 별도 정책; security events는 30일 기본.
+- 데이터 파일은 `CONSOLE_DATA_DIR` 아래만. production `docker volume` 마운트.
+- 백업 시 쿠키 세션 토큰 해시 및 데이터 취급 주의. 공개 저장소 업로드 금지.
+- logs를 켜도 용량이 무제한 증가하지 않게 row/time cap과 indexes.
+
+[6] 안전하고 유용한 stderr
+- stdio stdout는 프로토콜. stderr만 운영 diagnostic으로 읽음.
+- 개인 데이터가 포함될 수 있어 truncate + redact + memory ring buffer 기본.
+- stderr 원문 DB 영구 저장 비활성. 필요 시 별도 명시적 운영 모드/P1.
+- catch된 error stack trace는 백엔드의 안전한 디버그 모드에서만,
+  UI에는 error code, summary, requestId 전달.
+
+[7] Acceptance Tests
+[ ] echo call -> 1 execution record, real duration nonnegative.
+[ ] dc_parse_post_url -> 1 call event. health ping은 call_count 증가 없음.
+[ ] tool_error/timeout/rejected가 잘못된 성공률로 합산되지 않음.
+[ ] 호출 본문, 키, cookie, response raw text가 DB 파일에 저장되지 않음.
+[ ] cursor pagination은 중복/건너뜀 최소화, stable order.
+[ ] 30일 retention job 및 데이터 없음 통계 표시 검증.

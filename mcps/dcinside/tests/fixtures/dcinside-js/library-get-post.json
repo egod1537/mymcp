@@ -1,0 +1,6 @@
+{
+  "postNo": "123",
+  "title": "mock post",
+  "content": "<p>mock body</p>",
+  "comments": { "totalCount": 1, "items": [{ "parent": "0", "id": "c1", "memo": "mock comment" }] }
+}

@@ -1,0 +1,53 @@
+# 06 / 게시글 본문, 댓글, 대댓글 표준화
+
+[목표]
+getPost/getComments/getPostWithComments를 하나의 domain service로 공통화하고, user import / authorized dcinside.js adapter 양쪽에서 동일한 데이터 모델로 반환한다.
+
+[정규화 모델]
+NormalizedPost {
+  canonicalUrl:string, galleryId:string, galleryType:'major'|'minor'|'mini', postNo:string,
+  title:string, bodyText:string, imageUrls?:string[],
+  authoredAt?:string, dateLabel?:string, metrics?:{views?:number,recommends?:number,dislikes?:number},
+  comments?:{total?:number,items:NormalizedComment[],partial:boolean},
+  provenance:{source:'user_import'|'deep_search_export'|'authorized_direct',capturedAt:string,provider?:string,parserVersion?:string},
+  contentAvailable:boolean
+}
+NormalizedComment {
+  commentId?:string, parentCommentId?:string, text:string, postedAt?:string,
+  // author IP, 계정 ID, 쿠키, 유저 식별자 원칙적으로 저장·반환하지 않음
+}
+
+[dcinside.js adapter mapping]
+- getPost({galleryId,postNo,extractImages:true}) 의 Post 구조를 실제 타입 정의와 비교.
+- Post.content -> bodyText (HTML일 수 있으므로 script/style 제거 및 plain text 정리; inner HTML 실행 금지).
+- Post.images -> imageUrls (URL allowlist, data/javascript URI 차단, 다운로드 안 함).
+- Post.comments.items -> comments.items. `memo` -> text, `id` -> commentId, `parent` -> parentCommentId (root indicator '0'는 undefined로 정규화).
+- Post.comments.totalCount -> total, 응답받은 length가 total보다 적다면 partial=true. 빈 댓글=댓글 0건인지 로딩 실패인지 구분.
+- `getPost` 결과 null -> NOT_FOUND, URL 오류 -> INPUT_INVALID, upstream 차단 -> UPSTREAM_BLOCKED.
+- 게시글 조회 단건에서 댓글이 포함되면 별도 원격 댓글 반복 호출하지 않음. 댓글 페이징 지원은 라이브러리가 실제로 제공할 때만 확장.
+- `getPostList`에서 오는 작성자, IP/닉네임, 민감 정보는 기본 모델에 포함하지 않는다.
+
+[사용자 제공 HTML/JSON import]
+- URL은 기존 parseDcPostUrl만 사용, gallery ID/postNo 검증.
+- HTML의 본문/제목/댓글 선택자는 사용자가 제공한 fixture에 근거해 최소한 구현. 화면 구조 변경 시 깨질 수 있으므로 parserVersion 포함.
+- HTML -> 텍스트 변경 시 DOM sanitizer 사용. HTML body 전체 저장이나 script 실행 금지.
+- 텍스트 없는 이미지 전용 게시글은 title+imageUrls가 존재하면 contentAvailable=true로 보고할지 계약상 명확화.
+- 텍스트/댓글 추출 실패 시 빈 문자열 성공으로 위장하지 말고 PARSE_FAILED.
+- 사용자가 따로 제공한 댓글 배열을 deep-merge할 때 commentId 기준으로 중복 제거, parent-child 순서 보존.
+
+[데이터 저장 schema]
+- 기존 schemaVersion=1 record는 변경 없이 읽기 가능.
+- v2 추가 시 기존 필수 필드 유지하고 provenance/matchedKeywords/normalized metrics를 별도 optional metadata로 추가.
+- source='deep_search_export'는 검색 결과 '목록'에만 해당하며, snippet을 본문 bodyText로 저장하지 않음.
+- 저장 파일 0600/디렉터리 0700, 원자 rename, bytes 상한 유지.
+- 중복 글 저장 시 기존 콘텐츠를 보호하고 무의미한 인덱스 수입으로 덮어쓰지 않음. content update는 명시적 user action.
+
+[페이지네이션]
+- dc_get_comments offset/limit는 레코드에 존재하는 loaded items 범위 기준. total이 실제 사이트 총 댓글 수인지/loaded only인지 별도 필드.
+- totalSiteCount / loadedCount / partial 및 nextOffset 제공 조건을 문서화.
+- 진짜 전체 댓글이 불가능하면 partial 반환, 추가 요청을 자동으로 대량 반복하지 않는다.
+
+[테스트]
+- 부모 댓글 + 대댓글, 텍스트만 있는 글, 이미지 전용 글, 삭제된 댓글, 0개 댓글, 100개 댓글.
+- 줄바꿈, HTML entity, Unicode, 이모지, 큰 본문, 빈 본문, XSS payload, javascript: image.
+- v1 import 데이터와 v2 import 데이터 비교, 기존 dc_get_post/dc_get_comments shape 유지.

@@ -15,7 +15,7 @@ From the repository root:
 
 ```bash
 pnpm install
-cp mcps/japanese-vocab/.env.example mcps/japanese-vocab/.env
+cp mcps/jlpt/.env.example mcps/jlpt/.env
 ```
 
 Environment variables:
@@ -26,14 +26,14 @@ JAPANESE_VOCAB_DEFAULT_DAILY_COUNT=14
 LOG_LEVEL=info
 ```
 
-Relative DB paths are resolved from `mcps/japanese-vocab`, even when the compiled server is launched from the repository root.
+Relative DB paths are resolved from `mcps/jlpt`, even when the compiled server is launched from the repository root.
 
 ## Database
 
 The default database is:
 
 ```text
-mcps/japanese-vocab/data/vocab.db
+mcps/jlpt/data/vocab.db
 ```
 
 SQLite tables:
@@ -46,7 +46,7 @@ The DB file, WAL, and shared-memory files are ignored by Git. Stop the MCP proce
 
 ```bash
 mkdir -p backup
-cp mcps/japanese-vocab/data/vocab.db backup/vocab-$(date +%F).db
+cp mcps/jlpt/data/vocab.db backup/vocab-$(date +%F).db
 ```
 
 ## Development
@@ -58,7 +58,7 @@ pnpm test:japanese-vocab
 pnpm --filter @mymcp/japanese-vocab typecheck
 ```
 
-Or from `mcps/japanese-vocab`:
+Or from `mcps/jlpt`:
 
 ```bash
 pnpm dev
@@ -69,7 +69,7 @@ pnpm test
 Run the compiled stdio server:
 
 ```bash
-node mcps/japanese-vocab/dist/index.js
+node mcps/jlpt/dist/index.js
 ```
 
 ## MCP client configuration
@@ -81,7 +81,7 @@ Build first, then use an absolute path:
   "mcpServers": {
     "japanese-vocab": {
       "command": "node",
-      "args": ["/absolute/path/to/mymcp/mcps/japanese-vocab/dist/index.js"],
+      "args": ["/absolute/path/to/mymcp/mcps/jlpt/dist/index.js"],
       "env": {
         "JAPANESE_VOCAB_DB_PATH": "./data/vocab.db"
       }

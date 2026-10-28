@@ -1,0 +1,76 @@
+06 - TEST PLAN, FIXTURES AND CI
+
+TEST FRAMEWORK
+- Vitest, Node 22, strict types, dependency-injected mock fetch.
+- No Google API key or network required to run unit tests or CI.
+- Keep tiny synthetic upstream JSON fixtures, clearly marked as mock data.
+- Tests should assert PUBLIC normalized output rather than private internals.
+
+LOCATION TESTS
+1. Korean/English/Japanese query forwarded unchanged to Places Text Search.
+2. Places field mask contains id, displayName, formattedAddress and location;
+   no star field mask, no review or price fields.
+3. Zero results -> status no_results, empty candidates.
+4. Single candidate -> status ok and needs_disambiguation=false.
+5. Multiple candidates -> needs_disambiguation=true; full candidate list returned.
+6. Address geocoding partial_match -> needs_disambiguation=true.
+7. Invalid query, oversized query, invalid coordinates/radius, bias with address ->
+   INVALID_ARGUMENT without making upstream request.
+8. Fields missing in upstream response -> omitted candidate or safe null, not fake data.
+9. Geocoding status in HTTP 200 mapped correctly (ZERO_RESULTS, REQUEST_DENIED,
+   OVER_QUERY_LIMIT, UNKNOWN_ERROR).
+
+ROUTE TESTS
+1. Place ID waypoints -> {placeId}; coordinate -> {location:{latLng}};
+   postal address -> {address}. No mixed waypoint representations.
+2. TRANSIT with departure_time 2027-02-27T09:30:00+09:00 maps to departureTime;
+   use frozen clock within valid time window in tests.
+3. TRANSIT with arrival_time maps to arrivalTime, never both.
+4. Both times present => INVALID_ARGUMENT, 0 network calls.
+5. Non-TRANSIT arrival time => INVALID_ARGUMENT.
+6. transit preferences on DRIVE => INVALID_ARGUMENT.
+7. traffic_aware on WALK/BICYCLE/TRANSIT => INVALID_ARGUMENT when true.
+8. alternative routes flag is passed through; preserve original order.
+9. No routes -> normal status no_route.
+10. Detailed transit response preserves stop names, line name, headsign,
+    vehicle type and UTC times; missing fare remains null.
+11. BICYCLE/WALK warning from response is not dropped.
+12. Duration parsing includes '2420s', '3.5s', malformed and empty values.
+13. Optional route polyline requested only when include_polyline=true.
+14. Optional steps excluded from masks/output when include_steps=false.
+15. No accidental matrix call, no external endpoint fetch.
+
+TRANSPORT / HTTP TESTS
+- MCP server starts with mock dependency, initialize/list_tools reveal exactly 2 tools.
+- A request/response works over real in-memory or spawned stdio protocol transport.
+- Stdout is only JSON-RPC, no console.log/startup banner.
+- Config-missing failure writes useful stderr and exits nonzero when live starting.
+- HTTP 401/403, 429, 5xx, timeout, malformed JSON, network failure cases.
+- Retry only eligible failures with bounded attempts; Retry-After capped.
+- Response field masks are deterministic and contain no wildcard.
+- API key never appears in captured tool errors or logs.
+
+CI
+GitHub Actions workflow on push and pull_request:
+- Node 22 + tested pnpm via corepack or pnpm/action-setup.
+- pnpm install --frozen-lockfile
+- pnpm lint
+- pnpm typecheck
+- pnpm test
+- pnpm build
+- Never read production secret or invoke live APIs in CI.
+- Optional coverage reporting, but do not make it block basic installation.
+
+MANUAL LIVE SMOKE TEST (ONLY WITH EXPLICIT HUMAN OPT-IN AND VALID KEY)
+- Verify resolve_location for '東京駅', region 'jp'.
+- Resolve '新宿駅' separately and explicitly select the correct place IDs.
+- Run get_route between the chosen IDs with mode TRANSIT; verify transit step
+  details, duration and not fabricated fare data.
+- Run get_route with WALK for two close identified places; preserve warnings.
+- Run alternatives=true and accept one route if Google supplies only one.
+- Verify no API key leaks to output. Document actual Google charges may apply.
+- Do NOT hardcode specific travel time, distance, fare, station platform or route
+  count; those change and are not suitable assertions.
+- Live smoke test must be disabled by default and NEVER run from GitHub Actions.
+
+Read next: 07_README_AND_CLIENT_SETUP.txt
