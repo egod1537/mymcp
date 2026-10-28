@@ -1,0 +1,79 @@
+# MCP Tools - Exact P0 Contracts
+
+Conventions
+All tools are read-only with respect to DCInside itself. dc_import_post writes to the user's LOCAL storage only.
+Any unknown field should be rejected or safely ignored consistently by the chosen schema policy. User input must be bounded. Use stable JSON object outputs rather than ad hoc prose. All errors include { code, message }.
+
+TOOL 1: dc_search_posts
+Description: Search a third-party web index for DCInside post links; NOT direct/live DCInside search.
+Input:
+  query: string, trim, 1..200 characters, required
+  galleryId?: string, regex ^[A-Za-z0-9_-]{1,64}$
+  galleryType?: "major" | "minor" | "mini"   (only meaningful with galleryId; default undefined)
+  freshness?: "any" | "day" | "week" | "month" | "year"; default "any"
+  limit?: integer 1..20, default 10
+Output:
+  { query, provider:"brave", source:"search_index", count, coverageNote,
+    results:[ { title, url, snippet, galleryId, galleryType, postNo, dateLabel? } ] }
+Properties:
+  - Search publicly indexed results; strictly filter non-DCInside-post URLs after response.
+  - If galleryId provided, require exact parsed galleryId match on every hit.
+  - galleryType must match when provided.
+  - De-duplicate canonical URLs; do not keep offsite results.
+  - Titles/snippets from provider, not claims of original complete content.
+  - If API key missing, return CONFIGURATION_REQUIRED with instructions.
+  - Do not fabricate results for absent or ambiguous matches.
+  - Filtering can produce fewer than requested results; do not scrape to fill gaps.
+
+TOOL 2: dc_parse_post_url
+Description: Validate and canonicalize a DCInside post URL without accessing network.
+Input: { url: string, length 1..2048 }
+Output:
+  { valid:true, canonicalUrl, galleryId, galleryType, postNo, source:"url_parse" }
+Invalid input: INPUT_INVALID with concise reason.
+Accept supported exact hosts/paths listed in 04, no redirects, no DNS/network checks.
+
+TOOL 3: dc_import_post
+Description: Save text/comments supplied explicitly by the user. No remote access.
+Input:
+  url: string, valid supported post URL
+  title: string 1..500
+  bodyText: string 0..100000
+  comments?: array 0..100 of { text:string 1..5000, commentId?:string, postedAt?:string }
+  note?: string 0..2000  (optional user note)
+Output:
+  { status:"saved", canonicalUrl, galleryId, postNo, importedAt, bodyLength, commentCount, source:"user_import" }
+Validation:
+  - Require at least nonempty bodyText OR one comment.
+  - Cap total serialized payload at 250 KiB.
+  - Drop any unsupported author IP/user ID metadata fields rather than collecting them.
+  - On repeated import, replace that one local record atomically (no indefinite version tracking).
+
+TOOL 4: dc_get_post
+Description: Retrieve a previously imported LOCAL post only.
+Input: { url:string }
+Output:
+  { found:true, source:"user_import", canonicalUrl, galleryId, galleryType, postNo, title,
+    bodyText, importedAt, note?, commentCount }
+If not imported:
+  { found:false, source:"local_store", canonicalUrl, reason:"NOT_IMPORTED", hint:"Use dc_import_post with content you have manually supplied." }
+Never use network fallback.
+
+TOOL 5: dc_get_comments
+Description: Retrieve comments included in the locally imported post, not live comments.
+Input:
+  url: string
+  offset?: integer 0..10000, default 0
+  limit?: integer 1..100, default 30
+Output:
+  { found:true, source:"user_import", canonicalUrl, total, offset, limit,
+    comments:[ { text, commentId?, postedAt? } ] }
+If not imported: same explicit NOT_IMPORTED result, not an invented empty list.
+
+EXAMPLE SEARCH
+Input: {"query":"일본 교환학생","galleryId":"japan","limit":5}
+Expected: only eligible URLs returned by search index; may legitimately return zero.
+
+EXAMPLE URL PARSE
+Input: {"url":"https://gall.dcinside.com/mgallery/board/view/?id=example&no=123&page=2"}
+Output: {"valid":true,"canonicalUrl":"https://gall.dcinside.com/mgallery/board/view/?id=example&no=123","galleryId":"example","galleryType":"minor","postNo":"123","source":"url_parse"}

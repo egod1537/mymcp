@@ -1,0 +1,55 @@
+# URL Parsing and Brave Search Provider
+
+SUPPORTED POST URLS FOR V1
+  major: https://gall.dcinside.com/board/view/?id=<galleryId>&no=<positiveInteger>
+  minor: https://gall.dcinside.com/mgallery/board/view/?id=<galleryId>&no=<positiveInteger>
+  mini:  https://gall.dcinside.com/mini/board/view/?id=<galleryId>&no=<positiveInteger>
+Also accept optional trailing slash omission and unrelated query parameters (strip them).
+Mobile and novel future URL layouts are explicitly unsupported unless verified and covered by tests. Do not guess URL layouts.
+
+URL RULES
+- Use new URL() with strict validation.
+- Require protocol https:, hostname exactly gall.dcinside.com, no username/password/port.
+- Reject mismatched host names, subdomains such as gall.dcinside.com.evil.example, IP literals, javascript/file/data protocols.
+- Normalize paths to canonical paths above.
+- Require exactly one id and one no parameter; reject repeated/conflicting params.
+- galleryId regex ^[A-Za-z0-9_-]{1,64}$; postNo digits only, value >0, preserve as decimal string (to avoid unsafe numeric parsing/overflow), optionally strip leading zeros.
+- Ignore query keys like page, exception_mode, ref, utm_* after validating id/no.
+- Stable canonicalURL, no query reordering variance: always ?id=...&no=...
+- No HTTP request in parse function.
+
+SEARCH PROVIDER
+Official Brave Web Search API endpoint:
+  GET https://api.search.brave.com/res/v1/web/search
+Header: X-Subscription-Token: <BRAVE_SEARCH_API_KEY>
+Reference: https://api-dashboard.search.brave.com/api-reference/web/search/get
+
+Provider query construction:
+  q = "site:gall.dcinside.com " + sanitized user query
+  country=KR, search_lang=ko, ui_lang=ko-KR, result_filter=web,
+  safesearch=moderate, text_decorations=false, count=min(limit,20), offset=0.
+  freshness mapping any: omit, day:pd, week:pw, month:pm, year:py.
+Do not allow user-provided arbitrary site override. Treat query as search string, not as a URL to fetch.
+
+INDEX LIMITATION
+- Brave search is an external index; no assurance of fresh, full, complete, sorted or gallery-exhaustive results.
+- Gallery filter is enforced by parsing returned URL, not by relying on search-engine query syntax alone.
+- Only accept result URLs that pass dc_parse_post_url rules; ignore all other result types, including third-party mirrors.
+- Source title/snippet directly from search results, strip markup/decorations safely; guard empty/null fields.
+- Optional dateLabel only if trustworthy provider metadata, and clearly label as search-index age, never postedAt.
+- Search provider returns at most 20 web hits per request; avoid multiplying requests to fill gallery filters.
+- Deduplicate canonical URLs.
+- If provider returned 20 but filters yield 2, return 2.
+
+HTTP SAFETY
+- Use native fetch with AbortController timeout.
+- Network calls must be to exact Brave API origin and endpoint. Do not use result links as fetch targets.
+- Handle 400, 401/403, 429, 5xx with typed errors and no secret leakage.
+- Retry a bounded maximum of 2 times on 429/5xx with a short exponential backoff and optional Retry-After, never on 400/401/403.
+- Respect provider service terms, quota and rate limits; stop rather than bypass.
+- Local request limiter, default max 10 searches per minute process-wide.
+- Do not store index snippets persistently unless provider license explicitly permits it.
+- Avoid logging full raw user queries or content by default; log only coarse operation outcome to stderr.
+
+DEPENDENCY INJECTION
+SearchProvider interface should support a fake implementation for tests and future approved providers. Implement only BraveSearchProvider in P0; avoid private/internal site APIs.

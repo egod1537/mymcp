@@ -3,5 +3,7 @@ dist/
 coverage/
 pnpm-lock.yaml
 
-# Pre-existing MCP projects are migration inputs and are outside phase 1.
-mcps/
+# MCP projects that have not yet joined the shared formatting workflow.
+mcps/google-routes/
+mcps/japanese-vocab/
+mcps/jlpt/

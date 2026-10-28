@@ -1,0 +1,49 @@
+# Testing, Mocks, and CI
+
+UNIT TESTS - URL PARSER
+- Major/minor/mini valid URLs parse correctly.
+- Strip irrelevant query string and fragment; consistent canonicalUrl.
+- Reject unsupported or malicious URLs: http, ftp, javascript, username@host, alternate host, custom port, fake subdomain, no id, no no, negative/decimal/NaN no, duplicate id/no, unexpected path, oversized id, empty id.
+- No network calls.
+
+UNIT TESTS - BRAVE PROVIDER
+- Mock fetch. Verify exact Brave endpoint, required headers and query defaults.
+- Mock mixed search results: allowed gallery post, offsite, DCInside home, invalid/no query, duplicate; only valid eligible links returned.
+- Gallery ID/type exact filtering.
+- Freshness mapping pd/pw/pm/py; validate limit 1..20.
+- Missing key, 401, 429, 500, aborted timeout, malformed JSON.
+- Show that stale/indexed data is labeled correctly and not claimed real-time.
+- Do not record secrets in snapshot/log outputs.
+- Rate limiter rejects/backs off; no repeated requests to fill filtered results.
+
+UNIT TESTS - LOCAL IMPORT
+- Import/get/comments round-trip using temp directory.
+- Valid unicode/Korean text and line breaks.
+- Atomic upsert and persisted schema version.
+- Oversized payload and invalid comments rejected.
+- No arbitrary paths; hashes are filenames.
+- Missing item gets explicit NOT_IMPORTED response.
+- Corrupt persisted JSON gets DATA_CORRUPT.
+- File permissions where supported; cleanup temp dirs.
+
+NEGATIVE NETWORK TEST
+Create a test harness that fails any attempt to fetch from dcinside.com or any host except mock Brave API. Verify no direct DCInside request occurs on any P0 tool call, including dc_get_post when not found.
+
+MCP INTEGRATION TEST
+- Instantiate server with fake provider and temp local store.
+- Ensure all five tools registered with accurate schemas and descriptions.
+- Invoke representative tools via SDK in-memory transport or equivalent test facility.
+- Validate structured content/text, errors, and clean stdio behavior.
+
+CI
+- Reuse existing GitHub Actions if present; extend only necessary workspace scripts.
+- Typecheck + unit tests + build should not require live credentials.
+- No live network integration in standard CI.
+- Optional live Brave-only integration test behind explicit opt-in env var; never call DCInside.
+
+QUALITY GATES
+  pnpm --filter @mymcp/dcinside typecheck
+  pnpm --filter @mymcp/dcinside test
+  pnpm --filter @mymcp/dcinside build
+  pnpm --filter @mymcp/dcinside lint  # only if root has configured lint
+Adapt exact commands to actual repo scripts and report outcomes.

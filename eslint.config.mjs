@@ -5,10 +5,17 @@ import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
   {
-    ignores: ['**/dist/**', '**/coverage/**', '**/node_modules/**', 'mcps/**'],
+    ignores: [
+      '**/dist/**',
+      '**/coverage/**',
+      '**/node_modules/**',
+      'mcps/google-routes/**',
+      'mcps/japanese-vocab/**',
+      'mcps/jlpt/**',
+    ],
   },
   {
-    files: ['apps/**/*.ts', 'packages/**/*.ts', 'scripts/**/*.ts'],
+    files: ['apps/**/*.ts', 'mcps/dcinside/**/*.ts', 'packages/**/*.ts', 'scripts/**/*.ts'],
     extends: [eslint.configs.recommended, ...tseslint.configs.recommended],
     languageOptions: {
       globals: globals.node,

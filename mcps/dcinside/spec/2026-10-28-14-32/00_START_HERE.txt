@@ -1,0 +1,53 @@
+# DCInside MCP - Codex Execution Instructions
+Version: 1.0
+Prepared: 2026-10-28
+Target repository: https://github.com/egod1537/mymcp
+Target local directory: mcps/dcinside/
+
+ROLE
+Act as a senior TypeScript/MCP developer. Implement the full P0 specification in numbered order from 01 to 09. Do not just propose a plan: implement, test, and document the code.
+
+IMPORTANT EXISTING WORKSPACE CONTEXT
+The user's actual local directory layout includes:
+  /Users/yang/proj/mymcp/mcps/google-routes/
+Therefore use mcps/dcinside/ as the new package root, NOT apps/dcinside/.
+The GitHub remote was reported as empty at the time the specs were written, but local Mac mini files may exist. The local checkout is the source of truth. Inspect the filesystem, package manager, workspace config, existing modules, and working tree BEFORE editing. Preserve unrelated files and do not reset/overwrite existing work.
+
+GOAL
+Build a minimal, genuinely usable, READ-ONLY DCInside-focused MCP server via:
+  A. Search-engine-indexed links/snippets from Brave Search API (no direct DCInside requests).
+  B. Deterministic URL validation and canonicalization.
+  C. Local import and retrieval of post text/comments manually supplied by the user.
+
+CRITICAL COMPLIANCE CONSTRAINT
+DCInside's terms effective 2026-10-07, Article 16, explicitly prohibit site crawling without prior written consent. DO NOT implement a network scraper/crawler or fetch posts directly from DCInside in this P0 release. The provided search index is a third-party licensed API; it is not a workaround for silently scraping the site.
+Official terms: https://nstatic.dcinside.com/dc/w/policy/policy_index.html
+Brave Web Search API docs: https://api-dashboard.search.brave.com/api-reference/web/search/get
+
+P0 MCP TOOLS
+1. dc_search_posts        - indexed search results only
+2. dc_parse_post_url      - no network requests
+3. dc_import_post         - user-provided text and optional comments
+4. dc_get_post            - locally imported content only
+5. dc_get_comments        - comments from locally imported records only
+
+OUT OF SCOPE
+No real-time gallery listing, bulk archival, deep crawling, direct post/comment fetching, bypassing robots/CAPTCHA/403, account login, votes, writing, deletion, proxies, automated training-data collection, follower tracking, or individual-user profiling.
+
+IMPLEMENTATION WORKFLOW
+1. Inspect working tree: pwd, git status, ls, pnpm-workspace.yaml, package.json, tsconfig, other MCP servers.
+2. Adapt to existing workspace conventions without destructive rewrites.
+3. Create package under mcps/dcinside with correct workspace inclusion and test scripts.
+4. Implement URL parsing first; then source abstraction, Brave search, local storage, tool handlers, tests, docs.
+5. Use mocked third-party API responses and synthetic fixtures; DO NOT make live requests to DCInside.
+6. Run install (only if appropriate), typecheck, lint (if available), tests, build, and smoke test.
+7. Report exact changed files, commands/results, remaining issues, and prerequisites.
+
+RESPECT USER'S REPOSITORY
+- No pushes, commits, destructive git actions, or changes to GitHub without explicit approval unless the executing Codex workflow separately grants such authority.
+- Never hardcode API credentials.
+- Keep stdio protocol stdout clean: logs go to stderr.
+- No fabricated live success. External search works only after user configures Brave Search key.
+
+ACCEPTANCE
+All P0 acceptance gates in 09_ACCEPTANCE_AND_HANDOFF.txt must pass.

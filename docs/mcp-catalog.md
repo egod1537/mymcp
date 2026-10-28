@@ -7,7 +7,7 @@ validated, or included in the new workspace.
 | MCP              | Description                                         | State                               | Package / path                                          |
 | ---------------- | --------------------------------------------------- | ----------------------------------- | ------------------------------------------------------- |
 | `example`        | Reference stdio server with a validated `echo` tool | Implemented phase-1 reference       | `@mymcp/example` / `apps/example`                       |
-| `dcinside`       | Existing DCInside MCP project                       | Planned migration; **not migrated** | No phase-1 package / pre-existing `mcps/dcinside`       |
+| `dcinside`       | Indexed search and local user-imported post data    | Implemented read-only P0            | `@mymcp/dcinside` / `mcps/dcinside`                     |
 | `google-routes`  | Existing Google Routes MCP project                  | Planned migration; **not migrated** | No phase-1 package / pre-existing `mcps/google-routes`  |
 | `japanese-vocab` | Existing Japanese vocabulary MCP project            | Planned migration; **not migrated** | No phase-1 package / pre-existing `mcps/japanese-vocab` |
 
@@ -18,8 +18,9 @@ exposes one `echo` tool over stdio. See `apps/example/README.md`.
 
 ## dcinside
 
-Planned migration candidate. Its existing files were preserved in place and are outside
-`pnpm-workspace.yaml`; phase 1 makes no compatibility or release claim for them.
+Implemented as a stdio workspace package. It searches only Brave's third-party web index,
+validates post URLs locally, and stores only content explicitly supplied by the user. It does not
+send automated requests to DCInside.
 
 ## google-routes
 

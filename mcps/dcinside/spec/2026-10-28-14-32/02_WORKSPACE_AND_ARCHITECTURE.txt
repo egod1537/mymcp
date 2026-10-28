@@ -1,0 +1,65 @@
+# Monorepo Architecture and Dependencies
+
+REPOSITORY FIT
+Package root: mcps/dcinside/
+Suggested npm package name: @mymcp/dcinside
+The pre-existing repo may use a different convention; inspect and adapt rather than forcing a new root.
+
+SUGGESTED TREE
+mcps/dcinside/
+  src/
+    index.ts                       stdio bootstrap
+    server.ts                      MCP tool registration
+    config.ts                      validated runtime config
+    errors.ts                      typed domain errors
+    core/
+      dc-url.ts                    URL validation and canonicalization
+      schemas.ts                   zod schemas and domain types
+    providers/
+      search-provider.ts           interface: searchIndexedPosts
+      brave-search.ts              sole P0 network provider
+    store/
+      post-store.ts                local user-imported record store
+    tools/
+      search-posts.ts
+      parse-post-url.ts
+      import-post.ts
+      get-post.ts
+      get-comments.ts
+  tests/
+    fixtures/                      synthetic local JSON fixtures
+    dc-url.test.ts
+    brave-search.test.ts
+    post-store.test.ts
+    tools.test.ts
+    no-direct-fetch.test.ts
+  package.json
+  tsconfig.json
+  .env.example
+  README.md
+
+TECH
+- TypeScript strict mode, Node.js 22 LTS; follow existing repo Node version if stricter.
+- pnpm workspace (do not nest a second workspace if one exists).
+- Official @modelcontextprotocol/sdk, zod, vitest; versions must be checked against installed workspace and current SDK APIs when implementing.
+- ESM exports or existing repository module strategy.
+- stdio transport as default. No HTTP server in P0.
+- No browser automation package; no cheerio/http scraping library in P0.
+- Use native fetch ONLY for Brave's official search endpoint. No arbitrary URL fetch.
+- Keep tool handlers thin: validation -> service -> structured result/error.
+
+SDK
+Use the current officially supported MCP server registration and StdioServerTransport APIs compatible with the installed SDK. Expose explicit input schemas and descriptions. Return concise text JSON and, where supported, machine-readable structuredContent. For tool failures use isError=true and stable error codes without secrets.
+
+CONFIG
+BRAVE_SEARCH_API_KEY    optional; required only for search tool
+DCINSIDE_DATA_DIR       optional; default $HOME/.local/share/mymcp/dcinside
+DCINSIDE_SEARCH_TIMEOUT_MS optional, default 8000, clamp 1000..15000
+DCINSIDE_MAX_SEARCHES_PER_MINUTE optional, default 10, clamp max 30
+
+WORKSPACE TASKS
+- Ensure pnpm-workspace.yaml includes mcps/* without breaking existing entries.
+- Add scripts for dev/build/typecheck/test; package scripts should be usable with pnpm --filter @mymcp/dcinside <script>.
+- Share root tsconfig/lint defaults when present; do not create redundant global config.
+- Do not modify existing google-routes implementation.
+- Lockfile update only via normal pnpm operations.

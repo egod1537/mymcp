@@ -1,0 +1,41 @@
+# Acceptance Gates, Execution Order, and Codex Handoff
+
+ORDER
+Phase 0 Inspect local checkout and existing pnpm conventions.
+Phase 1 Create package skeleton and strict TypeScript setup.
+Phase 2 Implement strict DCInside post URL parser and tests.
+Phase 3 Implement local user-import storage and tools.
+Phase 4 Implement Brave indexed search provider and search tool.
+Phase 5 Register all tools with official MCP SDK over stdio.
+Phase 6 Complete tests, README, .env.example, workspace scripts and optional CI.
+Phase 7 Build, run tests, smoke test, report outcomes.
+
+MUST PASS
+[ ] mcps/dcinside exists without changing existing google-routes logic.
+[ ] All 5 named MCP tools registered with proper validation.
+[ ] URL parser handles major/minor/mini posts, rejects malicious URLs.
+[ ] Search filters results to recognized DCInside post links, labels source search_index.
+[ ] Search missing key fails with CONFIGURATION_REQUIRED, other local tools still work.
+[ ] User import/get/comments flow works using private local JSON files.
+[ ] get_post and get_comments never attempt network fallback.
+[ ] No direct DCInside HTTP requests exist anywhere in P0.
+[ ] No auth, write, CAPTCHA/proxy evasion, bulk crawling or scraping functionality exists.
+[ ] No secrets are committed or shown in logs.
+[ ] Tests and typecheck pass offline; build succeeds.
+[ ] README explains compliance and search-index coverage limitations.
+[ ] Workspace scripts align with actual repository conventions.
+
+DEFINITION OF DONE
+The MCP runs under a local client using stdio, can parse/import/retrieve an example post offline, and can search indexed DCInside links with a valid Brave Search API key. It must not present indexed snippets as full live DCInside content. No DCInside direct-fetch endpoint should be implemented.
+
+FINAL CODEX REPORT FORMAT
+1. Summary of implemented features
+2. Changed/new files (paths)
+3. Verification commands and actual results
+4. Example MCP tool payloads and results from mocked/synthetic data
+5. Remaining prerequisites (e.g., Brave API key)
+6. Known limitations and future extension plan
+7. Confirmation: no direct automated requests to DCInside were implemented
+
+CODEx PROMPT TO USE
+"Read 00_START_HERE.txt, then all numbered spec files in order. Inspect the current mymcp workspace and implement the P0 DCInside MCP inside mcps/dcinside. Preserve existing projects. Build and test everything possible offline, then report exact verification results. Do not implement direct DCInside crawling or bypass the site terms."

@@ -1,0 +1,35 @@
+# Product Scope and Data Access Policy
+
+INTENDED USER EXPERIENCE
+User asks their MCP client to search DCInside-related posts by keyword/gallery; server returns links, titles, snippets, and transparent provenance from an existing web search index. The MCP can parse a supplied DCInside post URL. User can copy/export a post and comments manually, import the data, and retrieve it with MCP. Do not imply that index search is a live feed or that locally imported content updates automatically.
+
+REASON FOR RESTRICTED DATA ACCESS
+Official DCInside terms effective 2026-10-07, Article 16(1): crawling DCInside without prior written consent is expressly prohibited, with narrow references to some robots.txt-enabled sites. Article 11 also addresses unauthorized automated collection and technical circumvention. Respect the official text and any future terms changes.
+  https://nstatic.dcinside.com/dc/w/policy/policy_index.html
+A library on GitHub claiming to support scraping is not evidence of site permission. Do not copy its unauthorized network logic.
+
+ALLOWED P0
+- Search via provider's published, licensed search API.
+- Show indexed link, title, short snippet, and provider attribution.
+- Validate/normalize URLs locally.
+- Store user-explicitly-provided text in private local files and query it.
+- Read local records imported directly by the user, not harvested autonomously.
+
+NOT ALLOWED P0
+- GET/POST to gall.dcinside.com, m.dcinside.com, or private internal endpoints.
+- Fetching search hits to fill in body, counts, authors, or comments.
+- Enumerating gallery pages via URL increments.
+- Scraping through headless browsers, proxy rotation, fingerprint spoofing, CAPTCHAs, or recycled cookies.
+- Calling unofficial mobile API endpoints as a substitute for permission.
+- Logging or profiling authors/IP fragments, automated bulk downloads, AI training datasets.
+
+TRUTHFULNESS RULES
+- Search-index results can be stale, incomplete, or inaccurately dated.
+- Do not promise exhaustive or chronological search.
+- No author name, view count, vote count, comment count, or full text unless supplied by user through import.
+- Treat search snippets as snippets, not the original complete content.
+- Every returned search hit must include provider="brave" and source="search_index".
+- Every returned imported post must include source="user_import" and importedAt.
+
+FUTURE EXTENSION
+If the user obtains written authorization or a sanctioned API contract, it may become appropriate to create a separate, explicitly authorized read provider. This P0 spec intentionally contains no direct scraper implementation. Future additions need an explicit authorization review and rate/scope controls; no environment-variable toggle alone grants permission.

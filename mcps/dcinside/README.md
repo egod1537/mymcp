@@ -1,307 +1,285 @@
 # @mymcp/dcinside
 
-DCInside 공개 갤러리의 글 목록, 검색 결과, 본문과 댓글을 읽는 read-only MCP 서버다. `mymcp` pnpm workspace 안에서 독립 패키지와 독립 stdio 서버로 동작한다.
+DCInside 관련 링크를 제3자 검색 인덱스에서 찾고, DCInside 게시글 URL을 로컬에서 검증하며, 사용자가 직접 제공한 게시글·댓글을 로컬 파일에 저장하고 조회하는 stdio MCP 서버입니다.
 
-로그인, 글쓰기, 댓글 작성, 추천, CAPTCHA 우회 기능은 구현하지 않는다.
+이 서버는 DCInside를 직접 크롤링하지 않습니다. 갤러리 목록, 게시글 본문, 댓글 endpoint에 요청하지 않으며 로그인, 글쓰기, 추천, 삭제, CAPTCHA 우회, proxy 회전, 대량 보관 기능도 없습니다.
 
-## Installation
+## 데이터 출처와 준수 사항
 
-요구 사항:
+- 검색 결과는 Brave Web Search API가 이미 인덱싱한 링크·제목·짧은 snippet입니다. 실시간 피드가 아니며 오래되거나 불완전하고 시간순이 아닐 수 있습니다.
+- 게시글 본문과 댓글은 사용자가 `dc_import_post`로 명시적으로 공급한 데이터만 제공합니다. 자동 갱신되지 않습니다.
+- DCInside 약관(2026-10-07 시행) 제16조는 사전 서면 동의 없는 크롤링을 금지합니다. 기능 확장 전 [공식 이용약관](https://nstatic.dcinside.com/dc/w/policy/policy_index.html)을 다시 검토해야 합니다.
+- 검색에는 사용자가 별도로 설정한 Brave API 계정이 사용됩니다. [Brave Web Search API 문서](https://api-dashboard.search.brave.com/api-reference/web/search/get)와 해당 계정의 조건·쿼터를 준수해야 합니다.
 
-- Node.js 22.12 이상
-- pnpm 12
+## 설치와 개발
 
-저장소 루트에서 설치한다.
+요구 사항은 Node.js 22 이상과 pnpm 12입니다. 저장소 루트에서 실행합니다.
 
 ```bash
+cd /Users/yang/proj/mymcp
 pnpm install
+pnpm --filter @mymcp/dcinside typecheck
+pnpm --filter @mymcp/dcinside test
+pnpm --filter @mymcp/dcinside build
 ```
 
-## Development
+개발 서버는 다음과 같이 시작합니다.
 
 ```bash
-pnpm dev:dcinside
+pnpm --filter @mymcp/dcinside dev
 ```
 
-또는 패키지 디렉터리에서 독립 실행할 수 있다.
+## 설정
 
-```bash
-cd mcps/dcinside
-pnpm dev
+`.env.example`을 `.env`로 복사할 수 있습니다. Brave 키가 없어도 URL parse와 로컬 import/get 도구는 정상 작동합니다.
+
+```env
+BRAVE_SEARCH_API_KEY=
+# DCINSIDE_DATA_DIR=/Users/yang/.local/share/mymcp/dcinside
+# DCINSIDE_SEARCH_TIMEOUT_MS=8000
+# DCINSIDE_MAX_SEARCHES_PER_MINUTE=10
 ```
 
-## Build
+- `BRAVE_SEARCH_API_KEY`: `dc_search_posts`에만 필요합니다.
+- `DCINSIDE_DATA_DIR`: 기본값은 `$HOME/.local/share/mymcp/dcinside`입니다.
+- `DCINSIDE_SEARCH_TIMEOUT_MS`: 기본 8000, 1000..15000 범위로 제한됩니다.
+- `DCINSIDE_MAX_SEARCHES_PER_MINUTE`: 프로세스 기준 기본 10, 최대 30입니다.
 
-```bash
-pnpm build:dcinside
-node mcps/dcinside/dist/index.js
-```
+실제 키를 저장소 파일이나 MCP 설정에 직접 넣지 마세요.
 
-stdio에는 MCP 메시지만 기록하고 로그는 stderr로 출력한다.
+## MCP 클라이언트 설정
 
-## MCP 설정 예제
-
-일반적인 stdio MCP Client 설정 예제다. 실제 절대 경로로 변경해야 한다.
+빌드 후 예시는 다음과 같습니다.
 
 ```json
 {
   "mcpServers": {
     "dcinside": {
       "command": "node",
-      "args": ["/absolute/path/to/mymcp/mcps/dcinside/dist/index.js"],
+      "args": ["/Users/yang/proj/mymcp/mcps/dcinside/dist/index.js"],
       "env": {
-        "LOG_LEVEL": "info"
+        "BRAVE_SEARCH_API_KEY": "${BRAVE_SEARCH_API_KEY}"
       }
     }
   }
 }
 ```
 
-## Gallery type 자동 탐지
+`${...}` 치환은 모든 MCP 클라이언트가 지원하는 문법이 아닙니다. 사용하는 클라이언트가 부모 프로세스의 환경변수를 상속하는지 확인하고, 지원하지 않으면 해당 클라이언트의 secret/environment 설정 기능을 사용하세요. 커밋되는 JSON에 실제 키를 기록하면 안 됩니다.
 
-Tool 호출자가 일반·마이너·미니 갤러리를 지정할 필요가 없다. 서버가 다음 순서로 실제 페이지를 확인하고 탐지 결과를 메모리에 캐시한다.
+## 도구
 
-1. `/board/lists/`
-2. `/mgallery/board/lists/`
-3. `/mini/board/lists/`
+모든 응답은 JSON text와 같은 내용의 `structuredContent`를 반환합니다. 오류는 `isError=true`와 `{ "code", "message", "retryable"? }` 형태입니다.
 
-게시글 URL을 전달하면 URL 경로에서 타입을 바로 판별한다.
+### `dc_search_posts`
 
-## Tools
+Brave의 제3자 검색 인덱스를 검색합니다. 응답 URL은 지원되는 DCInside 게시글 URL만 남도록 다시 검증되고 canonical URL 기준으로 중복 제거됩니다.
 
-모든 Tool은 `readOnlyHint: true`다. `content.text`에는 JSON 문자열을, `structuredContent`에는 같은 구조의 JSON 객체를 반환한다.
-
-### `get_gallery_posts`
-
-특정 갤러리의 최근 글을 가져온다.
-
-Input:
+입력:
 
 ```json
 {
-  "galleryId": "foreign_university",
-  "page": 1,
-  "limit": 20
+  "query": "일본 교환학생",
+  "galleryId": "japan",
+  "galleryType": "minor",
+  "freshness": "month",
+  "limit": 5
 }
 ```
 
-Output:
+출력 예:
 
 ```json
 {
-  "galleryId": "foreign_university",
-  "page": 1,
-  "posts": [
+  "query": "일본 교환학생",
+  "provider": "brave",
+  "source": "search_index",
+  "count": 1,
+  "coverageNote": "Results come from a third-party search index and may be stale, incomplete, or not chronological.",
+  "results": [
     {
-      "id": "1597028",
-      "title": "게시글 제목",
-      "author": "작성자 (1.2)",
-      "date": "2026-10-06 12:00:00",
-      "views": 100,
-      "recommendations": 2,
-      "comments": 3,
-      "url": "https://gall.dcinside.com/...",
-      "isNotice": false
+      "title": "검색 인덱스의 제목",
+      "url": "https://gall.dcinside.com/mgallery/board/view/?id=japan&no=123",
+      "snippet": "검색 인덱스의 짧은 snippet",
+      "galleryId": "japan",
+      "galleryType": "minor",
+      "postNo": "123"
     }
   ]
 }
 ```
 
-기본값은 `page=1`, `limit=20`이며 `limit` 최대값은 100이다.
+본문, 작성자, 조회수, 추천수, 실시간 댓글 수를 가져오지 않습니다. filter 후 결과 수가 요청 수보다 적을 수 있으며 이를 채우려고 추가 크롤링하지 않습니다.
 
-### `search_gallery_posts`
+### `dc_parse_post_url`
 
-갤러리 안에서 키워드를 검색한다. 숫자 페이지와 DCInside의 `search_pos` 검색 구간을 순서대로 탐색하고 ID가 같은 결과는 제거한다.
+네트워크 요청 없이 major/minor/mini 게시글 URL을 검증하고 정규화합니다.
 
-Input:
+입력:
 
 ```json
 {
-  "galleryId": "foreign_university",
-  "query": "오사카",
-  "page": 1,
-  "maxPages": 3,
-  "searchTarget": "title_content"
+  "url": "https://gall.dcinside.com/mgallery/board/view/?id=example&no=00123&page=2"
 }
 ```
 
-Output:
+출력:
 
 ```json
 {
-  "galleryId": "foreign_university",
-  "query": "오사카",
-  "posts": [
-    {
-      "id": "1597028",
-      "title": "오사카 관련 글",
-      "url": "https://gall.dcinside.com/..."
-    }
-  ]
+  "valid": true,
+  "canonicalUrl": "https://gall.dcinside.com/mgallery/board/view/?id=example&no=123",
+  "galleryId": "example",
+  "galleryType": "minor",
+  "postNo": "123",
+  "source": "url_parse"
 }
 ```
 
-`searchTarget`은 `title` 또는 `title_content`이며 기본값은 `title_content`다. `maxPages` 기본값은 3, 최대값은 10이다.
+mobile URL, HTTP, 다른 host, 사용자 정보나 port가 포함된 URL, 중복 `id`/`no`, 지원되지 않는 path는 거부됩니다.
 
-### `get_post`
+### `dc_import_post`
 
-게시글 본문을 사람이 읽을 수 있는 텍스트로 변환한다. 링크는 본문과 `links`에, 이미지·영상 주소는 본문과 `imageUrls`에 보존한다.
+사용자가 직접 복사·내보낸 본문과 댓글을 로컬에 저장합니다. URL 자체에는 접근하지 않습니다. 동일 canonical URL을 다시 import하면 이전 레코드 하나를 원자적으로 교체하고 새 `importedAt`을 부여합니다.
 
-Input은 두 형식 중 하나를 사용한다.
-
-```json
-{
-  "galleryId": "foreign_university",
-  "postId": "1597028"
-}
-```
+입력:
 
 ```json
 {
-  "url": "https://gall.dcinside.com/mgallery/board/view/?id=foreign_university&no=1597028"
-}
-```
-
-Output:
-
-```json
-{
-  "id": "1597028",
-  "galleryId": "foreign_university",
-  "title": "게시글 제목",
-  "author": "작성자",
-  "date": "2026-10-06 12:00:00",
-  "views": 100,
-  "recommendations": 2,
-  "content": "정리된 본문 텍스트",
-  "imageUrls": ["https://dcimg..."],
-  "links": ["https://example.com"],
-  "url": "https://gall.dcinside.com/..."
-}
-```
-
-### `get_comments`
-
-댓글과 답글을 가져온다. 기본적으로 최대 10페이지까지 읽으며 `maxPages`로 1~20 범위에서 제한할 수 있다.
-
-Input:
-
-```json
-{
-  "galleryId": "foreign_university",
-  "postId": "1597028",
-  "maxPages": 10
-}
-```
-
-`get_post`와 마찬가지로 `url`만 전달할 수도 있다.
-
-Output:
-
-```json
-{
+  "url": "https://gall.dcinside.com/board/view/?id=example&no=123",
+  "title": "사용자가 제공한 제목",
+  "bodyText": "사용자가 제공한 본문\n둘째 줄",
   "comments": [
     {
-      "id": "12345",
-      "author": "댓글 작성자",
-      "content": "댓글 내용",
-      "date": "10.06 12:34:56",
-      "depth": 1,
-      "parentId": "12340",
-      "isDeleted": false
+      "text": "사용자가 제공한 댓글",
+      "commentId": "c1",
+      "postedAt": "2026-10-28"
     }
-  ]
+  ],
+  "note": "개인 메모"
 }
 ```
 
-### `get_post_with_comments`
-
-본문과 댓글을 한 번에 반환한다. 여러 검색 결과를 분석할 때 MCP 왕복 횟수를 줄이는 용도다.
-
-Input:
+출력 예:
 
 ```json
 {
-  "url": "https://gall.dcinside.com/mgallery/board/view/?id=foreign_university&no=1597028",
-  "maxCommentPages": 10
+  "status": "saved",
+  "canonicalUrl": "https://gall.dcinside.com/board/view/?id=example&no=123",
+  "galleryId": "example",
+  "postNo": "123",
+  "importedAt": "2026-10-28T00:00:00.000Z",
+  "bodyLength": 17,
+  "commentCount": 1,
+  "source": "user_import"
 }
 ```
 
-Output:
+본문은 최대 100,000자, 댓글은 최대 100개/각 5,000자, 전체 직렬화 데이터는 250KiB로 제한됩니다. author, IP, user ID 같은 지원하지 않는 댓글 metadata는 저장하지 않습니다.
+
+### `dc_get_post`
+
+로컬에 import된 본문만 조회합니다.
+
+입력:
 
 ```json
 {
-  "post": {
-    "id": "1597028",
-    "title": "게시글 제목",
-    "content": "본문"
-  },
+  "url": "https://gall.dcinside.com/board/view/?id=example&no=123"
+}
+```
+
+출력 예:
+
+```json
+{
+  "found": true,
+  "source": "user_import",
+  "canonicalUrl": "https://gall.dcinside.com/board/view/?id=example&no=123",
+  "galleryId": "example",
+  "galleryType": "major",
+  "postNo": "123",
+  "title": "사용자가 제공한 제목",
+  "bodyText": "사용자가 제공한 본문",
+  "importedAt": "2026-10-28T00:00:00.000Z",
+  "commentCount": 1
+}
+```
+
+저장되지 않았다면 네트워크로 보충하지 않고 다음처럼 반환합니다.
+
+```json
+{
+  "found": false,
+  "source": "local_store",
+  "canonicalUrl": "https://gall.dcinside.com/board/view/?id=example&no=123",
+  "reason": "NOT_IMPORTED",
+  "hint": "Use dc_import_post with content you have manually supplied."
+}
+```
+
+### `dc_get_comments`
+
+로컬 레코드에 포함된 댓글만 페이지 단위로 조회합니다.
+
+입력:
+
+```json
+{
+  "url": "https://gall.dcinside.com/board/view/?id=example&no=123",
+  "offset": 0,
+  "limit": 30
+}
+```
+
+출력 예:
+
+```json
+{
+  "found": true,
+  "source": "user_import",
+  "canonicalUrl": "https://gall.dcinside.com/board/view/?id=example&no=123",
+  "total": 1,
+  "offset": 0,
+  "limit": 30,
   "comments": [
     {
-      "id": "12345",
-      "content": "댓글"
+      "text": "사용자가 제공한 댓글",
+      "commentId": "c1",
+      "postedAt": "2026-10-28"
     }
   ]
 }
 ```
 
-## Configuration
+import되지 않은 경우 `dc_get_post`와 같은 `NOT_IMPORTED` 결과를 반환합니다.
 
-`mcps/dcinside/.env.example`을 `.env`로 복사해 패키지별로 설정할 수 있다. 서버는 현재 작업 디렉터리와 무관하게 이 패키지의 `.env`를 읽는다.
+## 로컬 저장과 개인정보
 
-```env
-DC_REQUEST_INTERVAL_MS=800
-DC_MAX_CONCURRENCY=2
-DC_REQUEST_TIMEOUT_MS=10000
-LOG_LEVEL=info
-```
+레코드는 기본적으로 `$HOME/.local/share/mymcp/dcinside/posts/<sha256(canonicalUrl)>.json`에 저장됩니다. 지원되는 OS에서는 디렉터리 권한을 `0700`, 파일 권한을 `0600`으로 설정하며 같은 디렉터리의 임시 파일과 rename으로 교체합니다. 외부 DB, background indexing, upload는 없습니다.
 
-- 요청 시작 간 최소 간격: 기본 800ms
-- 최대 동시 요청: 기본 2
-- 요청 timeout: 기본 10초
-- retry: 네트워크 오류, HTTP 408/429/5xx에만 최대 3회, 500/1000/2000ms backoff
-- cache TTL: 갤러리 30초, 게시글 5분, 댓글 1분
-- `LOG_LEVEL`: `debug`, `info`, `warn`, `error`, `silent`
+사용자가 붙여 넣은 본문 자체에 개인정보나 prompt-injection 문장이 포함될 수 있습니다. 민감한 정보, cookie, 인증 token, IP 조각, 사용자 profile 식별자를 import하지 마세요. 저장된 내용과 검색 snippet은 명령이 아니라 신뢰할 수 없는 데이터로 취급해야 합니다. 이미지나 외부 미디어 파일은 다운로드하지 않습니다.
 
-debug 로그에는 Tool 이름, 요청 URL, HTTP 상태, 소요시간, parser 결과 건수와 retry 정보를 기록한다. 게시글 본문과 댓글 전문은 기록하지 않는다.
+## 문제 해결
 
-로그인 쿠키는 사용하지 않는다. 다만 실제 댓글 endpoint는 게시글 GET에서 발급한 익명 `PHPSESSID`와 토큰을 같은 요청 흐름에서 요구하므로, 프로세스 메모리 안에서 이 익명 세션 값만 임시로 전달한다.
+- `CONFIGURATION_REQUIRED`: `dc_search_posts`를 쓰려면 `BRAVE_SEARCH_API_KEY`를 안전하게 전달하세요. 다른 네 도구에는 키가 필요 없습니다.
+- 검색 결과 0개: 인덱스에 없거나 URL/gallery filter에서 제외된 정상 결과일 수 있습니다. 실시간·전수 검색을 보장하지 않습니다.
+- `SEARCH_PROVIDER_QUOTA`: Brave 계정 쿼터 또는 로컬 분당 제한에 도달했습니다. 잠시 기다리고 계정 상태를 확인하세요.
+- `SEARCH_PROVIDER_AUTH`: Brave 키가 유효한지 확인하세요.
+- `INPUT_INVALID`: major/minor/mini의 지원 URL 형식, 필드 길이와 범위를 확인하세요.
+- `NOT_IMPORTED`: 해당 canonical URL을 `dc_import_post`로 먼저 저장하세요.
+- `DATA_CORRUPT`: 로컬 JSON이 손상됐습니다. 자동으로 내용을 추측하거나 원격에서 복구하지 않습니다.
 
-## Tests
+## 테스트와 제한사항
 
-기본 테스트는 실제 사이트에 접근하지 않고 체크인된 gallery, search, post, comment fixture를 사용한다.
+표준 테스트는 mock/synthetic 데이터만 사용하며 live DCInside 요청을 하지 않습니다.
 
 ```bash
-pnpm test
-pnpm test:dcinside
+pnpm --filter @mymcp/dcinside typecheck
+pnpm --filter @mymcp/dcinside test
+pnpm --filter @mymcp/dcinside build
 ```
 
-실제 `list -> search -> post -> comments` 흐름은 명시적으로 활성화할 때만 실행한다.
+Brave 검색도 일반 CI에서는 mock됩니다. 검색 인덱스는 최신성·완전성·정렬을 보장하지 않고, 로컬 import는 사용자가 다시 저장하기 전까지 갱신되지 않습니다.
 
-```bash
-RUN_LIVE_TESTS=1 pnpm --filter @mymcp/dcinside test
-```
-
-## Architecture
-
-- `src/dcinside/`: HTTP client, 타입 탐지, domain logic, parser, types
-- `src/tools/`: domain API를 MCP Tool로 노출
-- `src/server.ts`: transport와 독립적인 MCP server 생성
-- `src/index.ts`: stdio transport entrypoint
-- `src/utils/`: rate limit, retry, cache, logger
-
-향후 `createServer()`를 재사용하는 Streamable HTTP entrypoint를 별도로 추가할 수 있다. 다른 MCP package와 Tool을 하나의 서버에 합치지 않는다.
-
-## Known limitations
-
-- DCInside HTML과 댓글 endpoint에는 공개 안정성 계약이 없으므로 구조가 바뀌면 parser 수정이 필요하다.
-- 삭제·성인·회원 전용·CAPTCHA·지역 제한 콘텐츠는 읽지 못할 수 있다.
-- 검색 결과는 DCInside의 시점별 `search_pos` 구간에 의존한다.
-- 댓글은 `maxPages` 제한을 넘으면 일부만 반환한다.
-- 미디어 파일은 다운로드하지 않고 URL만 반환한다.
-- 배포 서버 IP가 차단되거나 challenge를 받으면 upstream 오류를 반환한다. 차단 회피나 proxy rotation은 하지 않는다.
-- DCInside 사용자 작성 내용은 신뢰할 수 없는 외부 데이터로 취급해야 한다.
-
-## Remote MCP follow-up
-
-현재 버전은 stdio 전용이다. ChatGPT Remote MCP 연결 단계에서는 `createServer()`를 재사용하는 Streamable HTTP entrypoint, `/dcinside/mcp` HTTPS endpoint, 배포 health check, 인증 정책, reverse proxy 스트리밍 설정과 추가 abuse control이 필요하다.
+향후 DCInside 또는 다른 데이터 소스로부터 서면 허가나 공식 API 계약을 얻더라도, P0의 환경변수 하나로 직접 수집을 활성화해서는 안 됩니다. 허용 host/endpoint, rate, retention, 기간, 인증 주체와 제한을 별도 설계 검토에 기록한 뒤 독립 provider로 추가해야 합니다.

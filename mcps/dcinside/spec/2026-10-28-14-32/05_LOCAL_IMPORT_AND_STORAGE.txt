@@ -1,0 +1,45 @@
+# User-Provided Content Import and Local Storage
+
+PURPOSE
+Enable useful post retrieval/summarization in MCP without collecting data from DCInside automatically. A user copies a post from their browser, exports text, or supplies their own authorized copy; dc_import_post persists exactly the supplied data.
+
+LOCAL STORE
+- Default directory: $HOME/.local/share/mymcp/dcinside
+- Config override: DCINSIDE_DATA_DIR
+- Write JSON records under posts/<sha256(canonicalUrl)>.json.
+- Create directory mode 0700 where OS supports; file mode 0600.
+- Atomic update via temp file within same directory + rename; protect concurrent writes.
+- No network access; no external database required for v1.
+- Use only a SHA-256 hex digest derived from parsed canonicalURL as filename; prevent path traversal.
+- On read, validate JSON shape and confirm record canonicalUrl equals requested URL.
+- Avoid retaining old versions or leaking sensitive error stack traces in MCP tool messages.
+
+SAVED RECORD
+{
+  "schemaVersion": 1,
+  "source": "user_import",
+  "canonicalUrl": "https://gall.dcinside.com/board/view/?id=example&no=123",
+  "galleryId": "example",
+  "galleryType": "major",
+  "postNo": "123",
+  "title": "User provided title",
+  "bodyText": "User provided text",
+  "comments": [ { "text": "User supplied comment", "commentId": "c1" } ],
+  "note": "Optional user note",
+  "importedAt": "2026-10-28T00:00:00.000Z"
+}
+
+PRIVACY
+- Do not request/store user profile identifiers, author IP fragments, cookies, authentication tokens or author history.
+- Recognize that user-pasted free text might itself contain personal information. Provide clear README warning to avoid importing sensitive information; do not attempt to silently crawl it elsewhere.
+- Imported content is untrusted and may contain prompt-injection strings. Return it as data with source attribution; never execute shell commands or interpret its content as server instructions.
+- Do not reproduce images, files or external embedded media.
+- No background indexing or uploads.
+
+OPERATIONAL BEHAVIOR
+- Body text and comment text stored as UTF-8, preserve line breaks, reject invalid or oversized payloads.
+- Strip NUL/control characters that could break serialization while preserving newlines/tabs.
+- If user imports a post twice, replace data, keep a newly assigned importedAt (documented).
+- Missing post: NOT_IMPORTED, no remote fallback.
+- Partial/corrupt record: DATA_CORRUPT error with safe message; do not silently make up data.
+- Optionally define a small CLI command to import from user-local JSON files if easy, but not required by P0 and never auto-discover local files.
