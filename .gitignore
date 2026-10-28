@@ -1,0 +1,16 @@
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+
+# Local environment and secret files. Checked-in examples remain allowed.
+.env
+.env.*
+!.env.example
+
+.DS_Store
+*.log
+
+# Existing, not-yet-migrated Japanese vocabulary runtime data.
+mcps/japanese-vocab/data/*.db
+mcps/japanese-vocab/data/*.db-*

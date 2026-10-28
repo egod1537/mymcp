@@ -1,0 +1,7 @@
+node_modules/
+dist/
+coverage/
+pnpm-lock.yaml
+
+# Pre-existing MCP projects are migration inputs and are outside phase 1.
+mcps/

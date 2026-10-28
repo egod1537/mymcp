@@ -1,0 +1,33 @@
+{
+  "name": "@mymcp/root",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "TypeScript monorepo for independently maintained MCP servers",
+  "engines": {
+    "node": ">=22"
+  },
+  "packageManager": "pnpm@12.9.1",
+  "scripts": {
+    "build": "pnpm -r --if-present run build",
+    "clean": "pnpm -r --if-present run clean",
+    "create:mcp": "node scripts/create-mcp.mjs",
+    "dev": "pnpm --filter @mymcp/shared build && pnpm --filter @mymcp/example dev",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "eslint apps packages scripts",
+    "test": "pnpm --filter @mymcp/shared build && vitest run scripts/create-mcp.test.ts && pnpm -r --if-present run test",
+    "typecheck": "tsc -p scripts/tsconfig.json --noEmit && pnpm --filter @mymcp/shared build && pnpm -r --if-present run typecheck"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@types/node": "22.20.5",
+    "eslint": "10.13.0",
+    "eslint-config-prettier": "10.1.8",
+    "globals": "17.13.0",
+    "prettier": "3.9.10",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.72.1",
+    "vitest": "5.0.5"
+  }
+}

@@ -1,0 +1,35 @@
+[
+  {
+    "originIndex": 1,
+    "destinationIndex": 0,
+    "status": {},
+    "condition": "ROUTE_EXISTS",
+    "distanceMeters": 850,
+    "duration": "420s"
+  },
+  {
+    "originIndex": 0,
+    "destinationIndex": 0,
+    "status": {},
+    "condition": "ROUTE_EXISTS",
+    "distanceMeters": 1200,
+    "duration": "600s"
+  },
+  {
+    "originIndex": 0,
+    "destinationIndex": 1,
+    "status": {
+      "code": 5,
+      "message": "No route found"
+    },
+    "condition": "ROUTE_NOT_FOUND"
+  },
+  {
+    "originIndex": 1,
+    "destinationIndex": 1,
+    "status": {},
+    "condition": "ROUTE_EXISTS",
+    "distanceMeters": 2300,
+    "duration": "901.25s"
+  }
+]

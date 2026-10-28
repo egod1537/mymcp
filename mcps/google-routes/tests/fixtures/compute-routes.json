@@ -1,0 +1,32 @@
+{
+  "routes": [
+    {
+      "distanceMeters": 5120,
+      "duration": "1740s",
+      "staticDuration": "1500.500s",
+      "polyline": {
+        "encodedPolyline": "fixture-polyline"
+      },
+      "description": "Main Street",
+      "warnings": ["Walking directions are in beta."],
+      "legs": [
+        {
+          "distanceMeters": 5120,
+          "duration": "1740s",
+          "startLocation": {
+            "latLng": {
+              "latitude": 37.5547,
+              "longitude": 126.9707
+            }
+          },
+          "endLocation": {
+            "latLng": {
+              "latitude": 37.4979,
+              "longitude": 127.0276
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
