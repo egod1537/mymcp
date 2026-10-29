@@ -114,3 +114,81 @@ export const moveBooksInputSchema = z.strictObject({
   folderId: idSchema.nullable().default(null),
   confirm: z.literal(true).describe("Must be true because this writes to the JLPT service."),
 });
+
+export const updateFolderInputSchema = z
+  .strictObject({
+    folderId: idSchema,
+    name: z.string().trim().min(1).max(200).optional(),
+    parentId: idSchema.nullable().optional(),
+    pinned: z.boolean().optional(),
+    confirm: z.literal(true).describe("Must be true because this writes to the JLPT service."),
+  })
+  .refine(
+    (value) =>
+      value.name !== undefined || value.parentId !== undefined || value.pinned !== undefined,
+    { message: "At least one folder field must be supplied." },
+  );
+
+export const updateBookInputSchema = z
+  .strictObject({
+    bookId: idSchema,
+    title: z.string().trim().min(1).max(500).optional(),
+    category: z.string().trim().min(1).max(200).nullable().optional(),
+    favorite: z.boolean().optional(),
+    folderId: idSchema.nullable().optional(),
+    confirm: z.literal(true).describe("Must be true because this writes to the JLPT service."),
+  })
+  .refine(
+    (value) =>
+      value.title !== undefined ||
+      value.category !== undefined ||
+      value.favorite !== undefined ||
+      value.folderId !== undefined,
+    { message: "At least one book field must be supplied." },
+  );
+
+export const updateWordInputSchema = z
+  .strictObject({
+    bookId: idSchema,
+    entryId: idSchema,
+    term: z.string().trim().min(1).max(200).optional(),
+    reading: z.string().trim().min(1).max(200).nullable().optional(),
+    primaryMeaning: z.string().trim().min(1).max(2_000).optional(),
+    meanings: z.array(z.string().trim().min(1).max(2_000)).max(50).optional(),
+    nuance: z.string().trim().min(1).max(1_000).nullable().optional(),
+    partOfSpeech: stringListSchema.optional(),
+    jlptLevels: stringListSchema.optional(),
+    years: z.array(z.number().int().min(1900).max(2200)).max(50).optional(),
+    categories: stringListSchema.optional(),
+    relatedTerms: stringListSchema.optional(),
+    examples: z
+      .array(
+        z.strictObject({
+          ja: z.string().trim().min(1).max(2_000),
+          ko: z.string().trim().min(1).max(2_000).nullable().optional(),
+        }),
+      )
+      .max(50)
+      .optional(),
+    tags: stringListSchema.optional(),
+    status: z.enum(["ready", "needs-review"]).optional(),
+    identityPolicy: z.enum(["fork", "same"]).default("fork"),
+    confirm: z.literal(true).describe("Must be true because this writes to the JLPT service."),
+  })
+  .refine(
+    (value) =>
+      value.term !== undefined ||
+      value.reading !== undefined ||
+      value.primaryMeaning !== undefined ||
+      value.meanings !== undefined ||
+      value.nuance !== undefined ||
+      value.partOfSpeech !== undefined ||
+      value.jlptLevels !== undefined ||
+      value.years !== undefined ||
+      value.categories !== undefined ||
+      value.relatedTerms !== undefined ||
+      value.examples !== undefined ||
+      value.tags !== undefined ||
+      value.status !== undefined,
+    { message: "At least one word field must be supplied." },
+  );

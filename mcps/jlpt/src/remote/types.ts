@@ -30,7 +30,7 @@ export interface JlptEntry {
   wordId: string;
   bookId: string;
   term: string;
-  reading?: string;
+  reading?: string | null;
   primaryMeaning: string;
   meanings?: string[];
   nuance?: string | null;
@@ -38,12 +38,16 @@ export interface JlptEntry {
   jlptLevels?: string[];
   categories?: string[];
   tags?: string[];
-  examples?: unknown[];
-  relatedTerms?: unknown[];
+  years?: number[];
+  examples?: Array<{ ja: string; ko?: string | null }>;
+  relatedTerms?: string[];
+  sources?: unknown[];
   status?: string;
   createdAt?: string;
   updatedAt?: string;
   bookTitle?: string;
+  position?: number;
+  revision?: number;
 }
 
 export interface JlptStudyCard {
@@ -78,6 +82,23 @@ export interface JlptWordInput {
   examples?: Array<{ ja: string; ko?: string }>;
   tags?: string[];
   status?: "ready" | "needs-review";
+}
+
+export interface JlptWordUpdate {
+  term?: string;
+  reading?: string | null;
+  primaryMeaning?: string;
+  meanings?: string[];
+  nuance?: string | null;
+  partOfSpeech?: string[];
+  jlptLevels?: string[];
+  years?: number[];
+  categories?: string[];
+  relatedTerms?: string[];
+  examples?: Array<{ ja: string; ko?: string | null }>;
+  tags?: string[];
+  status?: "ready" | "needs-review";
+  identityPolicy: "fork" | "same";
 }
 
 export interface JlptRemoteClient {
@@ -132,4 +153,27 @@ export interface JlptRemoteClient {
     bookIds: string[];
     folderId: string | null;
   }): Promise<{ bookIds: string[]; folderId: string | null; movedBooks: number }>;
+  updateFolder(input: {
+    folderId: string;
+    name?: string;
+    parentId?: string | null;
+    pinned?: boolean;
+  }): Promise<{ folderId: string; updatedFields: string[] }>;
+  updateBook(input: {
+    bookId: string;
+    title?: string;
+    category?: string | null;
+    favorite?: boolean;
+    folderId?: string | null;
+  }): Promise<{ bookId: string; updatedFields: string[] }>;
+  updateWord(input: {
+    bookId: string;
+    entryId: string;
+    update: JlptWordUpdate;
+  }): Promise<{
+    bookId: string;
+    entryId: string;
+    wordId: string;
+    updatedFields: string[];
+  }>;
 }

@@ -136,6 +136,162 @@ describe("HttpJlptRemoteClient", () => {
     }
   });
 
+  it("updates folders, books, and words with current revisions", async () => {
+    const mutationBodies: Array<{
+      deviceId: string;
+      mutations: Array<{
+        operationId: string;
+        type: string;
+        targetId?: string;
+        expectedRevision?: number;
+        payload: Record<string, unknown>;
+      }>;
+    }> = [];
+    const fetchImpl = vi.fn<typeof fetch>(async (input, init) => {
+      const url = new URL(String(input));
+      if (url.pathname === "/api/folders") {
+        return json({
+          folders: [
+            {
+              id: "folder-1",
+              name: "기존 폴더",
+              parentId: null,
+              pinned: false,
+              orderIndex: 3,
+              revision: 7,
+            },
+          ],
+        });
+      }
+      if (url.pathname === "/api/books/book-existing") {
+        return json({
+          book: {
+            id: "book-existing",
+            title: "기존 단어장",
+            category: "문법",
+            folderId: "folder-1",
+            favorite: false,
+            orderIndex: 2,
+            revision: 4,
+            entryCount: 1,
+          },
+        });
+      }
+      if (url.pathname === "/api/books/book-existing/entries") {
+        return json({
+          entries: [
+            {
+              entryId: "entry-1",
+              wordId: "word-1",
+              bookId: "book-existing",
+              term: "確認",
+              reading: "かくにん",
+              primaryMeaning: "확인",
+              meanings: ["확인"],
+              nuance: null,
+              partOfSpeech: ["명사"],
+              jlptLevels: ["N3"],
+              years: [],
+              categories: [],
+              relatedTerms: [],
+              examples: [],
+              sources: [],
+              status: "ready",
+              tags: [],
+              revision: 6,
+            },
+          ],
+          nextCursor: null,
+        });
+      }
+      if (url.pathname === "/api/sync/mutations") {
+        const body = JSON.parse(String(init?.body)) as (typeof mutationBodies)[number];
+        mutationBodies.push(body);
+        return json({
+          results: body.mutations.map((item) => ({
+            operationId: item.operationId,
+            status: "applied",
+          })),
+        });
+      }
+      throw new Error(`unexpected path ${url.pathname}`);
+    });
+    const client = new HttpJlptRemoteClient({
+      baseUrl: new URL("https://jlpt.mangagaki.net"),
+      timeoutMs: 1_000,
+      fetchImpl,
+    });
+
+    await expect(
+      client.updateFolder({
+        folderId: "folder-1",
+        name: "수정 폴더",
+        parentId: "folder-parent",
+        pinned: true,
+      }),
+    ).resolves.toEqual({
+      folderId: "folder-1",
+      updatedFields: ["name", "parentId", "pinned"],
+    });
+    await expect(
+      client.updateBook({
+        bookId: "book-existing",
+        title: "수정 단어장",
+        category: null,
+        favorite: true,
+        folderId: null,
+      }),
+    ).resolves.toEqual({
+      bookId: "book-existing",
+      updatedFields: ["title", "category", "favorite", "folderId"],
+    });
+    await expect(
+      client.updateWord({
+        bookId: "book-existing",
+        entryId: "entry-1",
+        update: {
+          term: "確認する",
+          primaryMeaning: "확인하다",
+          identityPolicy: "fork",
+        },
+      }),
+    ).resolves.toEqual({
+      bookId: "book-existing",
+      entryId: "entry-1",
+      wordId: "word-1",
+      updatedFields: ["term", "primaryMeaning"],
+    });
+
+    const mutations = mutationBodies.map((body) => body.mutations[0]);
+    expect(mutations.map((item) => item?.type)).toEqual([
+      "folder.rename",
+      "folder.move",
+      "folder.pin",
+      "book.update",
+      "book.move",
+      "entry.update",
+    ]);
+    expect(mutations.map((item) => item?.expectedRevision)).toEqual([7, 8, 9, 4, 5, 6]);
+    expect(mutations[1]?.payload).toEqual({ parentId: "folder-parent", orderIndex: 3 });
+    expect(mutations[3]?.payload).toEqual({
+      title: "수정 단어장",
+      category: null,
+      favorite: true,
+    });
+    expect(mutations[4]?.payload).toEqual({ folderId: null, orderIndex: 2 });
+    expect(mutations[5]?.payload).toMatchObject({
+      identityPolicy: "fork",
+      fields: {
+        term: "確認する",
+        reading: "かくにん",
+        primaryMeaning: "확인하다",
+        meanings: ["확인"],
+        partOfSpeech: ["명사"],
+      },
+    });
+    expect(new Set(mutationBodies.map((body) => body.deviceId)).size).toBe(1);
+  });
+
   it("previews and commits imports with same-origin write headers", async () => {
     const fetchImpl = vi
       .fn<typeof fetch>()

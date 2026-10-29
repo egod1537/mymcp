@@ -110,8 +110,11 @@ Remote tools:
 - `jlpt_search`: search live book titles or vocabulary fields.
 - `jlpt_get_study_cards`: get a read-only study selection without recording a review.
 - `jlpt_create_folder`: create a top-level or nested folder.
+- `jlpt_update_folder`: rename, move, or pin an existing folder.
 - `jlpt_create_book`: create an empty book, optionally in a selected folder.
+- `jlpt_update_book`: change a book's title, category, favorite state, or folder.
 - `jlpt_add_words`: append up to 200 structured words to an existing book.
+- `jlpt_update_word`: edit an existing entry while preserving unspecified vocabulary fields.
 - `jlpt_move_books`: move up to 50 books into a folder or back to the unfiled area.
 - `jlpt_import_words`: preview and commit a new book from structured words. The deployed MCP
   enables this tool; every call requires `confirm=true` and passes through the dedicated write

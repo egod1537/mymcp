@@ -60,8 +60,22 @@ function remoteClient(): JlptRemoteClient {
       dueCount: 0,
     }),
     createFolder: vi.fn().mockResolvedValue({ folderId: "folder-2" }),
+    updateFolder: vi.fn().mockResolvedValue({
+      folderId: "folder-2",
+      updatedFields: ["name", "pinned"],
+    }),
     createBook: vi.fn().mockResolvedValue({ bookId: "book-2" }),
+    updateBook: vi.fn().mockResolvedValue({
+      bookId: "book-2",
+      updatedFields: ["title", "favorite"],
+    }),
     addWords: vi.fn().mockResolvedValue({ bookId: "book-2", insertedEntries: 1 }),
+    updateWord: vi.fn().mockResolvedValue({
+      bookId: "book-2",
+      entryId: "entry-2",
+      wordId: "word-2",
+      updatedFields: ["primaryMeaning"],
+    }),
     moveBooks: vi.fn().mockResolvedValue({
       bookIds: ["book-2"],
       folderId: "folder-2",
@@ -104,8 +118,11 @@ describe("JLPT remote Worker", () => {
         "jlpt_search",
         "jlpt_get_study_cards",
         "jlpt_create_folder",
+        "jlpt_update_folder",
         "jlpt_create_book",
+        "jlpt_update_book",
         "jlpt_add_words",
+        "jlpt_update_word",
         "jlpt_move_books",
         "jlpt_import_words",
       ]);
@@ -138,6 +155,15 @@ describe("JLPT remote Worker", () => {
         folderId: "folder-2",
       });
 
+      const updatedFolder = await client.callTool({
+        name: "jlpt_update_folder",
+        arguments: { folderId: "folder-2", name: "수정 폴더", pinned: true, confirm: true },
+      });
+      expect(updatedFolder.structuredContent).toMatchObject({
+        status: "updated",
+        updatedFields: ["name", "pinned"],
+      });
+
       const createdBook = await client.callTool({
         name: "jlpt_create_book",
         arguments: { title: "새 단어장", folderId: "folder-2", confirm: true },
@@ -145,6 +171,15 @@ describe("JLPT remote Worker", () => {
       expect(createdBook.structuredContent).toMatchObject({
         status: "created",
         bookId: "book-2",
+      });
+
+      const updatedBook = await client.callTool({
+        name: "jlpt_update_book",
+        arguments: { bookId: "book-2", title: "수정 단어장", favorite: true, confirm: true },
+      });
+      expect(updatedBook.structuredContent).toMatchObject({
+        status: "updated",
+        updatedFields: ["title", "favorite"],
       });
 
       const added = await client.callTool({
@@ -159,6 +194,21 @@ describe("JLPT remote Worker", () => {
         status: "added",
         bookId: "book-2",
         insertedEntries: 1,
+      });
+
+      const updatedWord = await client.callTool({
+        name: "jlpt_update_word",
+        arguments: {
+          bookId: "book-2",
+          entryId: "entry-2",
+          primaryMeaning: "확인하기",
+          confirm: true,
+        },
+      });
+      expect(updatedWord.structuredContent).toMatchObject({
+        status: "updated",
+        entryId: "entry-2",
+        updatedFields: ["primaryMeaning"],
       });
 
       const moved = await client.callTool({
@@ -182,8 +232,11 @@ describe("JLPT remote Worker", () => {
       });
       expect(clientImplementation.importWords).toHaveBeenCalledTimes(1);
       expect(clientImplementation.createFolder).toHaveBeenCalledTimes(1);
+      expect(clientImplementation.updateFolder).toHaveBeenCalledTimes(1);
       expect(clientImplementation.createBook).toHaveBeenCalledTimes(1);
+      expect(clientImplementation.updateBook).toHaveBeenCalledTimes(1);
       expect(clientImplementation.addWords).toHaveBeenCalledTimes(1);
+      expect(clientImplementation.updateWord).toHaveBeenCalledTimes(1);
       expect(clientImplementation.moveBooks).toHaveBeenCalledTimes(1);
     } finally {
       await client.close();
@@ -191,7 +244,7 @@ describe("JLPT remote Worker", () => {
     }
   });
 
-  it("does not advertise imports when deployment writes are disabled", async () => {
+  it("does not advertise write tools when deployment writes are disabled", async () => {
     const clientImplementation = remoteClient();
     const server = createJlptWorkerServer(
       env({ JLPT_ENABLE_WRITES: "false" }),

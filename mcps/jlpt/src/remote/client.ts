@@ -6,6 +6,7 @@ import type {
   JlptRemoteClient,
   JlptStudyCard,
   JlptWordInput,
+  JlptWordUpdate,
 } from "./types.js";
 
 export class JlptApiError extends Error {
@@ -163,6 +164,36 @@ export class HttpJlptRemoteClient implements JlptRemoteClient {
     return this.request(`/api/books/${encodeURIComponent(bookId)}`);
   }
 
+  private async getFolder(folderId: string): Promise<JlptFolder> {
+    const { folders } = await this.listFolders();
+    const folder = folders.find((item) => item.id === folderId);
+    if (!folder) {
+      throw new JlptApiError(
+        "JLPT_FOLDER_NOT_FOUND",
+        `JLPT folder ${folderId} was not found.`,
+        404,
+        false,
+      );
+    }
+    return folder;
+  }
+
+  private async getEntry(bookId: string, entryId: string): Promise<JlptEntry> {
+    let cursor: number | null = -1;
+    while (cursor !== null) {
+      const page = await this.getBookEntries({ bookId, cursor, limit: 200 });
+      const entry = page.entries.find((item) => item.entryId === entryId);
+      if (entry) return entry;
+      cursor = page.nextCursor ?? null;
+    }
+    throw new JlptApiError(
+      "JLPT_ENTRY_NOT_FOUND",
+      `JLPT entry ${entryId} was not found in book ${bookId}.`,
+      404,
+      false,
+    );
+  }
+
   private async applyMutations(mutations: JlptMutation[]): Promise<JlptMutationResult[]> {
     const response = await this.request<{ results?: JlptMutationResult[] }>(
       "/api/sync/mutations",
@@ -282,6 +313,51 @@ export class HttpJlptRemoteClient implements JlptRemoteClient {
     return { folderId };
   }
 
+  async updateFolder(input: {
+    folderId: string;
+    name?: string;
+    parentId?: string | null;
+    pinned?: boolean;
+  }): Promise<{ folderId: string; updatedFields: string[] }> {
+    const folder = await this.getFolder(input.folderId);
+    let expectedRevision = Number(folder.revision ?? 0);
+    const updatedFields: string[] = [];
+
+    if (input.name !== undefined && input.name !== folder.name) {
+      await this.applySingleMutation(
+        mutation(
+          "folder.rename",
+          { name: input.name },
+          { targetId: input.folderId, expectedRevision },
+        ),
+      );
+      expectedRevision += 1;
+      updatedFields.push("name");
+    }
+    if (input.parentId !== undefined && input.parentId !== (folder.parentId ?? null)) {
+      await this.applySingleMutation(
+        mutation(
+          "folder.move",
+          { parentId: input.parentId, orderIndex: folder.orderIndex ?? 0 },
+          { targetId: input.folderId, expectedRevision },
+        ),
+      );
+      expectedRevision += 1;
+      updatedFields.push("parentId");
+    }
+    if (input.pinned !== undefined && input.pinned !== folder.pinned) {
+      await this.applySingleMutation(
+        mutation(
+          "folder.pin",
+          { pinned: input.pinned },
+          { targetId: input.folderId, expectedRevision },
+        ),
+      );
+      updatedFields.push("pinned");
+    }
+    return { folderId: input.folderId, updatedFields };
+  }
+
   async createBook(input: {
     title: string;
     category?: string;
@@ -298,6 +374,49 @@ export class HttpJlptRemoteClient implements JlptRemoteClient {
       }),
     );
     return { bookId };
+  }
+
+  async updateBook(input: {
+    bookId: string;
+    title?: string;
+    category?: string | null;
+    favorite?: boolean;
+    folderId?: string | null;
+  }): Promise<{ bookId: string; updatedFields: string[] }> {
+    const { book } = await this.getBook(input.bookId);
+    let expectedRevision = Number(book.revision ?? 0);
+    const updatedFields: string[] = [];
+    const metadata: Record<string, unknown> = {};
+
+    if (input.title !== undefined && input.title !== book.title) {
+      metadata.title = input.title;
+      updatedFields.push("title");
+    }
+    if (input.category !== undefined && input.category !== (book.category ?? null)) {
+      metadata.category = input.category;
+      updatedFields.push("category");
+    }
+    if (input.favorite !== undefined && input.favorite !== book.favorite) {
+      metadata.favorite = input.favorite;
+      updatedFields.push("favorite");
+    }
+    if (Object.keys(metadata).length > 0) {
+      await this.applySingleMutation(
+        mutation("book.update", metadata, { targetId: input.bookId, expectedRevision }),
+      );
+      expectedRevision += 1;
+    }
+    if (input.folderId !== undefined && input.folderId !== (book.folderId ?? null)) {
+      await this.applySingleMutation(
+        mutation(
+          "book.move",
+          { folderId: input.folderId, orderIndex: book.orderIndex ?? 0 },
+          { targetId: input.bookId, expectedRevision },
+        ),
+      );
+      updatedFields.push("folderId");
+    }
+    return { bookId: input.bookId, updatedFields };
   }
 
   async addWords(input: {
@@ -350,6 +469,56 @@ export class HttpJlptRemoteClient implements JlptRemoteClient {
     }
 
     return { bookId: input.bookId, insertedEntries };
+  }
+
+  async updateWord(input: {
+    bookId: string;
+    entryId: string;
+    update: JlptWordUpdate;
+  }): Promise<{
+    bookId: string;
+    entryId: string;
+    wordId: string;
+    updatedFields: string[];
+  }> {
+    const entry = await this.getEntry(input.bookId, input.entryId);
+    const { identityPolicy, ...patch } = input.update;
+    const updatedFields = Object.entries(patch)
+      .filter(([, value]) => value !== undefined)
+      .map(([key]) => key);
+    const term = patch.term ?? entry.term;
+    const reading = patch.reading !== undefined ? patch.reading : (entry.reading ?? null);
+    const identityChanged = term !== entry.term || reading !== (entry.reading ?? null);
+    const primaryMeaning = patch.primaryMeaning ?? entry.primaryMeaning;
+    const fields = {
+      term,
+      reading,
+      meanings: patch.meanings ?? entry.meanings ?? [primaryMeaning],
+      primaryMeaning,
+      nuance: patch.nuance !== undefined ? patch.nuance : (entry.nuance ?? null),
+      partOfSpeech: patch.partOfSpeech ?? entry.partOfSpeech ?? [],
+      jlptLevels: patch.jlptLevels ?? entry.jlptLevels ?? [],
+      years: patch.years ?? entry.years ?? [],
+      categories: patch.categories ?? entry.categories ?? [],
+      relatedTerms: patch.relatedTerms ?? entry.relatedTerms ?? [],
+      examples: patch.examples ?? entry.examples ?? [],
+      sources: entry.sources ?? [],
+      status: patch.status ?? entry.status ?? "ready",
+      tags: patch.tags ?? entry.tags ?? [],
+    };
+    await this.applySingleMutation(
+      mutation(
+        "entry.update",
+        { fields, identityPolicy: identityChanged ? identityPolicy : "same" },
+        { targetId: input.entryId, expectedRevision: Number(entry.revision ?? 0) },
+      ),
+    );
+    return {
+      bookId: input.bookId,
+      entryId: input.entryId,
+      wordId: entry.wordId,
+      updatedFields,
+    };
   }
 
   async moveBooks(input: {
