@@ -1,0 +1,41 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "mcp-jlpt",
+  "main": "src/worker.ts",
+  "compatibility_date": "2026-10-29",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "preview_urls": false,
+  "vars": {
+    "JLPT_API_BASE_URL": "https://jlpt.mangagaki.net",
+    "JLPT_API_TIMEOUT_MS": "10000",
+    "JLPT_ENABLE_WRITES": "true",
+  },
+  "routes": [
+    {
+      "pattern": "mcp-jlpt.mangagaki.net",
+      "custom_domain": true,
+    },
+  ],
+  "ratelimits": [
+    {
+      "name": "MCP_RATE_LIMITER",
+      "namespace_id": "1540",
+      "simple": {
+        "limit": 60,
+        "period": 60,
+      },
+    },
+    {
+      "name": "JLPT_WRITE_RATE_LIMITER",
+      "namespace_id": "1541",
+      "simple": {
+        "limit": 5,
+        "period": 60,
+      },
+    },
+  ],
+  "observability": {
+    "enabled": true,
+  },
+}

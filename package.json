@@ -18,7 +18,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint apps packages scripts",
-    "test": "pnpm --filter @mymcp/shared build && vitest run scripts/create-mcp.test.ts && pnpm -r --if-present run test",
+    "test": "pnpm --filter @mymcp/shared build && vitest run scripts/create-mcp.test.ts && pnpm -r --workspace-concurrency=1 --if-present run test",
     "typecheck": "tsc -p scripts/tsconfig.json --noEmit && pnpm --filter @mymcp/shared build && pnpm -r --if-present run typecheck"
   },
   "devDependencies": {

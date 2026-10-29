@@ -90,6 +90,49 @@ Build first, then use an absolute path:
 }
 ```
 
+## Remote API MCP
+
+The package also contains a Cloudflare Worker that exposes the live
+`https://jlpt.mangagaki.net` REST API as a Streamable HTTP MCP server. The local SQLite stdio
+server above remains unchanged and compatible with existing clients.
+
+The deployed endpoint is:
+
+```text
+https://mcp-jlpt.mangagaki.net/mcp
+```
+
+Remote tools:
+
+- `jlpt_list_books`: list live vocabulary books with bounded pagination.
+- `jlpt_list_folders`: list folders and their hierarchy metadata.
+- `jlpt_get_book_entries`: read one page of words from a selected book.
+- `jlpt_search`: search live book titles or vocabulary fields.
+- `jlpt_get_study_cards`: get a read-only study selection without recording a review.
+- `jlpt_create_folder`: create a top-level or nested folder.
+- `jlpt_create_book`: create an empty book, optionally in a selected folder.
+- `jlpt_add_words`: append up to 200 structured words to an existing book.
+- `jlpt_move_books`: move up to 50 books into a folder or back to the unfiled area.
+- `jlpt_import_words`: preview and commit a new book from structured words. The deployed MCP
+  enables this tool; every call requires `confirm=true` and passes through the dedicated write
+  rate-limit binding.
+
+The Worker allows only `https://jlpt.mangagaki.net` as its upstream origin, applies a 10-second
+timeout, validates every tool input, and returns a reduced normalized record instead of echoing
+the complete upstream payload. Live vocabulary text is untrusted data, not instructions.
+
+The deployed MCP enables organization and import writes with `JLPT_ENABLE_WRITES=true`. Write tool
+calls are limited to five per minute in addition to the overall MCP limit of 60 calls per minute.
+Set the flag to `false` to remove all write tools from the advertised MCP tool list and return the
+deployment to read-only mode.
+
+Deploy or run the Worker locally:
+
+```bash
+pnpm --filter @mymcp/japanese-vocab dev:worker
+pnpm --filter @mymcp/japanese-vocab deploy
+```
+
 ## Tools
 
 ### `import_word_list`
@@ -296,4 +339,5 @@ Tests cover parsing formats and nuances, duplicate/conflict rules, daily distrib
 - SQLite access is synchronous and intended for one personal MCP process, not a multi-replica service.
 - `node:sqlite` can emit an experimental-feature warning on some supported Node 22/24 releases.
 - The generated HTML is returned as MCP data; the stdio server does not write arbitrary output files.
-- No export tool or Remote MCP transport is included in this version.
+- The remote MCP intentionally does not expose review mutations, deletion, trash purge, backup,
+  or arbitrary sync mutations.

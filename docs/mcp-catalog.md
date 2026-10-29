@@ -43,4 +43,6 @@ Console P0 allowlist and must not be presented as running or healthy without a l
 
 The package currently lives at `mcps/jlpt` while retaining the package name
 `@mymcp/japanese-vocab`. It participates in workspace build, typecheck, and offline tests. Its
-local-data conventions and Console protocol behavior remain outside the verified set.
+local SQLite stdio transport remains outside the Console's verified set. A separate Streamable
+HTTP Worker adapts the live `jlpt.mangagaki.net` API, including confirmed folder, book, and word
+writes, and is independently verified at `https://mcp-jlpt.mangagaki.net/mcp`.

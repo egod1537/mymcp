@@ -107,12 +107,12 @@ See [development guidance](docs/development.md) for the full workflow and
 
 ## MCP catalog
 
-| MCP              | Repository state                           | Details                                                          |
-| ---------------- | ------------------------------------------ | ---------------------------------------------------------------- |
-| `example`        | Implemented; Console-verified              | [`apps/example`](apps/example), [README](apps/example/README.md) |
-| `dcinside`       | Implemented; Console-verified              | [Catalog entry](docs/mcp-catalog.md#dcinside)                    |
-| `google-maps`    | Implemented; not enabled in Console P0     | [Catalog entry](docs/mcp-catalog.md#google-maps)                 |
-| `google-routes`  | Build/test baseline only; Console-disabled | [Catalog entry](docs/mcp-catalog.md#google-routes)               |
-| `japanese-vocab` | Build/test baseline only; Console-disabled | [Catalog entry](docs/mcp-catalog.md#japanese-vocab)              |
+| MCP              | Repository state                                      | Details                                                          |
+| ---------------- | ----------------------------------------------------- | ---------------------------------------------------------------- |
+| `example`        | Implemented; Console-verified                         | [`apps/example`](apps/example), [README](apps/example/README.md) |
+| `dcinside`       | Implemented; Console-verified                         | [Catalog entry](docs/mcp-catalog.md#dcinside)                    |
+| `google-maps`    | Implemented; not enabled in Console P0                | [Catalog entry](docs/mcp-catalog.md#google-maps)                 |
+| `google-routes`  | Build/test baseline only; Console-disabled            | [Catalog entry](docs/mcp-catalog.md#google-routes)               |
+| `japanese-vocab` | Remote API MCP verified; local stdio Console-disabled | [Catalog entry](docs/mcp-catalog.md#japanese-vocab)              |
 
 The complete source-of-truth catalog is [docs/mcp-catalog.md](docs/mcp-catalog.md).
