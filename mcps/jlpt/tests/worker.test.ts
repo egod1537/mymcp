@@ -64,17 +64,29 @@ function remoteClient(): JlptRemoteClient {
       folderId: "folder-2",
       updatedFields: ["name", "pinned"],
     }),
+    deleteFolder: vi.fn().mockResolvedValue({
+      folderId: "folder-2",
+      policy: "unfile-books",
+      deleted: true,
+    }),
     createBook: vi.fn().mockResolvedValue({ bookId: "book-2" }),
     updateBook: vi.fn().mockResolvedValue({
       bookId: "book-2",
       updatedFields: ["title", "favorite"],
     }),
+    deleteBook: vi.fn().mockResolvedValue({ bookId: "book-2", deleted: true }),
     addWords: vi.fn().mockResolvedValue({ bookId: "book-2", insertedEntries: 1 }),
     updateWord: vi.fn().mockResolvedValue({
       bookId: "book-2",
       entryId: "entry-2",
       wordId: "word-2",
       updatedFields: ["primaryMeaning"],
+    }),
+    deleteWord: vi.fn().mockResolvedValue({
+      bookId: "book-2",
+      entryId: "entry-2",
+      wordId: "word-2",
+      deleted: true,
     }),
     moveBooks: vi.fn().mockResolvedValue({
       bookIds: ["book-2"],
@@ -119,13 +131,22 @@ describe("JLPT remote Worker", () => {
         "jlpt_get_study_cards",
         "jlpt_create_folder",
         "jlpt_update_folder",
+        "jlpt_delete_folder",
         "jlpt_create_book",
         "jlpt_update_book",
+        "jlpt_delete_book",
         "jlpt_add_words",
         "jlpt_update_word",
+        "jlpt_delete_word",
         "jlpt_move_books",
         "jlpt_import_words",
       ]);
+      for (const name of ["jlpt_delete_folder", "jlpt_delete_book", "jlpt_delete_word"]) {
+        expect(tools.tools.find((tool) => tool.name === name)?.annotations).toMatchObject({
+          readOnlyHint: false,
+          destructiveHint: true,
+        });
+      }
 
       const listed = await client.callTool({ name: "jlpt_list_books", arguments: {} });
       expect(listed.structuredContent).toMatchObject({
@@ -164,6 +185,16 @@ describe("JLPT remote Worker", () => {
         updatedFields: ["name", "pinned"],
       });
 
+      const deletedFolder = await client.callTool({
+        name: "jlpt_delete_folder",
+        arguments: { folderId: "folder-2", confirm: true },
+      });
+      expect(deletedFolder.structuredContent).toMatchObject({
+        status: "deleted",
+        policy: "unfile-books",
+        deleted: true,
+      });
+
       const createdBook = await client.callTool({
         name: "jlpt_create_book",
         arguments: { title: "새 단어장", folderId: "folder-2", confirm: true },
@@ -181,6 +212,12 @@ describe("JLPT remote Worker", () => {
         status: "updated",
         updatedFields: ["title", "favorite"],
       });
+
+      const deletedBook = await client.callTool({
+        name: "jlpt_delete_book",
+        arguments: { bookId: "book-2", confirm: true },
+      });
+      expect(deletedBook.structuredContent).toMatchObject({ status: "deleted", deleted: true });
 
       const added = await client.callTool({
         name: "jlpt_add_words",
@@ -211,6 +248,16 @@ describe("JLPT remote Worker", () => {
         updatedFields: ["primaryMeaning"],
       });
 
+      const deletedWord = await client.callTool({
+        name: "jlpt_delete_word",
+        arguments: { bookId: "book-2", entryId: "entry-2", confirm: true },
+      });
+      expect(deletedWord.structuredContent).toMatchObject({
+        status: "deleted",
+        entryId: "entry-2",
+        deleted: true,
+      });
+
       const moved = await client.callTool({
         name: "jlpt_move_books",
         arguments: { bookIds: ["book-2"], folderId: "folder-2", confirm: true },
@@ -233,10 +280,13 @@ describe("JLPT remote Worker", () => {
       expect(clientImplementation.importWords).toHaveBeenCalledTimes(1);
       expect(clientImplementation.createFolder).toHaveBeenCalledTimes(1);
       expect(clientImplementation.updateFolder).toHaveBeenCalledTimes(1);
+      expect(clientImplementation.deleteFolder).toHaveBeenCalledTimes(1);
       expect(clientImplementation.createBook).toHaveBeenCalledTimes(1);
       expect(clientImplementation.updateBook).toHaveBeenCalledTimes(1);
+      expect(clientImplementation.deleteBook).toHaveBeenCalledTimes(1);
       expect(clientImplementation.addWords).toHaveBeenCalledTimes(1);
       expect(clientImplementation.updateWord).toHaveBeenCalledTimes(1);
+      expect(clientImplementation.deleteWord).toHaveBeenCalledTimes(1);
       expect(clientImplementation.moveBooks).toHaveBeenCalledTimes(1);
     } finally {
       await client.close();

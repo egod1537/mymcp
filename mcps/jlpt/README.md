@@ -111,10 +111,13 @@ Remote tools:
 - `jlpt_get_study_cards`: get a read-only study selection without recording a review.
 - `jlpt_create_folder`: create a top-level or nested folder.
 - `jlpt_update_folder`: rename, move, or pin an existing folder.
+- `jlpt_delete_folder`: move a folder to trash while preserving or trashing its contents.
 - `jlpt_create_book`: create an empty book, optionally in a selected folder.
 - `jlpt_update_book`: change a book's title, category, favorite state, or folder.
+- `jlpt_delete_book`: move a book to trash.
 - `jlpt_add_words`: append up to 200 structured words to an existing book.
 - `jlpt_update_word`: edit an existing entry while preserving unspecified vocabulary fields.
+- `jlpt_delete_word`: move one vocabulary entry to trash.
 - `jlpt_move_books`: move up to 50 books into a folder or back to the unfiled area.
 - `jlpt_import_words`: preview and commit a new book from structured words. The deployed MCP
   enables this tool; every call requires `confirm=true` and passes through the dedicated write
@@ -342,5 +345,5 @@ Tests cover parsing formats and nuances, duplicate/conflict rules, daily distrib
 - SQLite access is synchronous and intended for one personal MCP process, not a multi-replica service.
 - `node:sqlite` can emit an experimental-feature warning on some supported Node 22/24 releases.
 - The generated HTML is returned as MCP data; the stdio server does not write arbitrary output files.
-- The remote MCP intentionally does not expose review mutations, deletion, trash purge, backup,
-  or arbitrary sync mutations.
+- The remote MCP intentionally does not expose review mutations, trash restore or permanent purge,
+  backup, or arbitrary sync mutations. Delete tools move entities to trash.

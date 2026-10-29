@@ -192,3 +192,25 @@ export const updateWordInputSchema = z
       value.status !== undefined,
     { message: "At least one word field must be supplied." },
   );
+
+export const deleteFolderInputSchema = z.strictObject({
+  folderId: idSchema,
+  policy: z
+    .enum(["unfile-books", "trash-contents"])
+    .default("unfile-books")
+    .describe(
+      "unfile-books preserves contained books; trash-contents also moves descendants to trash.",
+    ),
+  confirm: z.literal(true).describe("Must be true because this moves data to trash."),
+});
+
+export const deleteBookInputSchema = z.strictObject({
+  bookId: idSchema,
+  confirm: z.literal(true).describe("Must be true because this moves data to trash."),
+});
+
+export const deleteWordInputSchema = z.strictObject({
+  bookId: idSchema,
+  entryId: idSchema,
+  confirm: z.literal(true).describe("Must be true because this moves data to trash."),
+});

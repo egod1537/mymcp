@@ -358,6 +358,25 @@ export class HttpJlptRemoteClient implements JlptRemoteClient {
     return { folderId: input.folderId, updatedFields };
   }
 
+  async deleteFolder(input: {
+    folderId: string;
+    policy: "unfile-books" | "trash-contents";
+  }): Promise<{
+    folderId: string;
+    policy: "unfile-books" | "trash-contents";
+    deleted: true;
+  }> {
+    const folder = await this.getFolder(input.folderId);
+    await this.applySingleMutation(
+      mutation(
+        "folder.delete",
+        { policy: input.policy },
+        { targetId: input.folderId, expectedRevision: Number(folder.revision ?? 0) },
+      ),
+    );
+    return { folderId: input.folderId, policy: input.policy, deleted: true };
+  }
+
   async createBook(input: {
     title: string;
     category?: string;
@@ -417,6 +436,18 @@ export class HttpJlptRemoteClient implements JlptRemoteClient {
       updatedFields.push("folderId");
     }
     return { bookId: input.bookId, updatedFields };
+  }
+
+  async deleteBook(input: { bookId: string }): Promise<{ bookId: string; deleted: true }> {
+    const { book } = await this.getBook(input.bookId);
+    await this.applySingleMutation(
+      mutation(
+        "book.delete",
+        {},
+        { targetId: input.bookId, expectedRevision: Number(book.revision ?? 0) },
+      ),
+    );
+    return { bookId: input.bookId, deleted: true };
   }
 
   async addWords(input: {
@@ -518,6 +549,26 @@ export class HttpJlptRemoteClient implements JlptRemoteClient {
       entryId: input.entryId,
       wordId: entry.wordId,
       updatedFields,
+    };
+  }
+
+  async deleteWord(input: {
+    bookId: string;
+    entryId: string;
+  }): Promise<{ bookId: string; entryId: string; wordId: string; deleted: true }> {
+    const entry = await this.getEntry(input.bookId, input.entryId);
+    await this.applySingleMutation(
+      mutation(
+        "entry.delete",
+        {},
+        { targetId: input.entryId, expectedRevision: Number(entry.revision ?? 0) },
+      ),
+    );
+    return {
+      bookId: input.bookId,
+      entryId: input.entryId,
+      wordId: entry.wordId,
+      deleted: true,
     };
   }
 

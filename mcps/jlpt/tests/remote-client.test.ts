@@ -292,6 +292,92 @@ describe("HttpJlptRemoteClient", () => {
     expect(new Set(mutationBodies.map((body) => body.deviceId)).size).toBe(1);
   });
 
+  it("moves folders, books, and words to trash with current revisions", async () => {
+    const mutations: Array<{
+      type: string;
+      targetId?: string;
+      expectedRevision?: number;
+      payload: Record<string, unknown>;
+    }> = [];
+    const fetchImpl = vi.fn<typeof fetch>(async (input, init) => {
+      const url = new URL(String(input));
+      if (url.pathname === "/api/folders") {
+        return json({
+          folders: [{ id: "folder-1", name: "폴더", revision: 7, orderIndex: 0 }],
+        });
+      }
+      if (url.pathname === "/api/books/book-1") {
+        return json({ book: { id: "book-1", title: "단어장", revision: 4, entryCount: 1 } });
+      }
+      if (url.pathname === "/api/books/book-1/entries") {
+        return json({
+          entries: [
+            {
+              entryId: "entry-1",
+              wordId: "word-1",
+              bookId: "book-1",
+              term: "削除",
+              primaryMeaning: "삭제",
+              revision: 6,
+            },
+          ],
+          nextCursor: null,
+        });
+      }
+      if (url.pathname === "/api/sync/mutations") {
+        const body = JSON.parse(String(init?.body)) as {
+          mutations: Array<{
+            operationId: string;
+            type: string;
+            targetId?: string;
+            expectedRevision?: number;
+            payload: Record<string, unknown>;
+          }>;
+        };
+        mutations.push(...body.mutations);
+        return json({
+          results: body.mutations.map((item) => ({
+            operationId: item.operationId,
+            status: "applied",
+          })),
+        });
+      }
+      throw new Error(`unexpected path ${url.pathname}`);
+    });
+    const client = new HttpJlptRemoteClient({
+      baseUrl: new URL("https://jlpt.mangagaki.net"),
+      timeoutMs: 1_000,
+      fetchImpl,
+    });
+
+    await expect(
+      client.deleteFolder({ folderId: "folder-1", policy: "trash-contents" }),
+    ).resolves.toEqual({ folderId: "folder-1", policy: "trash-contents", deleted: true });
+    await expect(client.deleteBook({ bookId: "book-1" })).resolves.toEqual({
+      bookId: "book-1",
+      deleted: true,
+    });
+    await expect(
+      client.deleteWord({ bookId: "book-1", entryId: "entry-1" }),
+    ).resolves.toEqual({
+      bookId: "book-1",
+      entryId: "entry-1",
+      wordId: "word-1",
+      deleted: true,
+    });
+
+    expect(mutations.map((item) => item.type)).toEqual([
+      "folder.delete",
+      "book.delete",
+      "entry.delete",
+    ]);
+    expect(mutations.map((item) => item.targetId)).toEqual(["folder-1", "book-1", "entry-1"]);
+    expect(mutations.map((item) => item.expectedRevision)).toEqual([7, 4, 6]);
+    expect(mutations[0]?.payload).toEqual({ policy: "trash-contents" });
+    expect(mutations[1]?.payload).toEqual({});
+    expect(mutations[2]?.payload).toEqual({});
+  });
+
   it("previews and commits imports with same-origin write headers", async () => {
     const fetchImpl = vi
       .fn<typeof fetch>()

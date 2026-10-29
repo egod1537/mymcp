@@ -176,4 +176,17 @@ export interface JlptRemoteClient {
     wordId: string;
     updatedFields: string[];
   }>;
+  deleteFolder(input: {
+    folderId: string;
+    policy: "unfile-books" | "trash-contents";
+  }): Promise<{
+    folderId: string;
+    policy: "unfile-books" | "trash-contents";
+    deleted: true;
+  }>;
+  deleteBook(input: { bookId: string }): Promise<{ bookId: string; deleted: true }>;
+  deleteWord(input: {
+    bookId: string;
+    entryId: string;
+  }): Promise<{ bookId: string; entryId: string; wordId: string; deleted: true }>;
 }
